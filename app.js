@@ -131,7 +131,7 @@
 
   function tagsHtml(tags) {
     return (tags || []).map(function (t) {
-      var kind = t === 'отдых' ? ' rest' : /^этап/.test(t) ? ' phase' : '';
+      var kind = t === 'отдых' || /хорошо|отлично/.test(t) ? ' rest' : /^этап/.test(t) ? ' phase' : '';
       return '<i class="tag' + kind + '">' + esc(t) + '</i>';
     }).join('');
   }
