@@ -104,6 +104,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .segs { display: flex; background: var(--soft); border-radius: 12px; padding: 3px; }
 .sg { flex: 1; border: 0; background: none; padding: 8px 4px; border-radius: 9px; font-size: 15px; color: var(--hint); white-space: nowrap; }
 .sg.on { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); font-weight: 600; }
+.range { display: flex; align-items: center; gap: 10px; }
+.range em { color: var(--hint); font-style: normal; }
+.time { font: inherit; font-size: 17px; text-align: center; color: var(--text); background: var(--soft); border: 0; border-radius: 12px; padding: 9px 10px; min-width: 96px; flex: 1; -webkit-appearance: none; appearance: none; }
+.set-row:not(.col) .time { flex: none; }
 .sw-toggle { flex: none; width: 52px; height: 32px; border: 0; border-radius: 16px; background: var(--track); position: relative; transition: background .2s; }
 .sw-toggle i { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
 .sw-toggle.on { background: var(--accent); }

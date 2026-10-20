@@ -58,7 +58,7 @@
     return out;
   }
 
-  var mockSettings = { stretchAt: 780, eveAt: 1200 };
+  var mockSettings = { stretchAt: 780, lfk: { from: 1200, to: 1380 }, kb: { from: 1200, to: 1380 } };
 
   function state(month) {
     var m = month || today.slice(0, 7);
@@ -77,7 +77,7 @@
   window.LfkMock = {
     call: function (body) {
       if (body.action === 'saveSettings') {
-        mockSettings = { stretchAt: body.settings.stretchAt, eveAt: body.settings.eveAt };
+        mockSettings = body.settings;
         return { ok: true, settings: mockSettings };
       }
       if (body.action === 'mark') {

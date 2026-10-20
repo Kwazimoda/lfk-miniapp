@@ -9,8 +9,10 @@
   var ui = { tab: 'today', day: 'today', month: null, busy: false, hint: null };
   var colors = LfkSettings.normalize(null);
   var prefs = LfkSettings.normalizePrefs(null);
-  var STRETCH_TIMES = [600, 660, 720, 780, 840, 900];
-  var EVENING_TIMES = [1080, 1140, 1200, 1260];
+  var DEFAULT_REMINDERS = { stretchAt: 780, lfk: { from: 1200, to: 1380 }, kb: { from: 1200, to: 1380 } };
+  var WINDOW_MIN_FROM = 360;
+  var WINDOW_MAX_TO = 1425;
+  var WINDOW_MIN_LEN = 30;
   var SESSION_KEY = 'lfk-session';
   var session = null; // текущий таймер подходов (LfkSession), показывается поверх списка
   var overlayOpen = false;
@@ -241,13 +243,17 @@
     }).join('') + '</span>';
   }
 
+  function timeInput(path, minutes) {
+    return '<input type="time" class="time" data-time="' + path + '" value="' + (minutes < 600 ? '0' : '') + fmtMin(minutes) + '" step="900">';
+  }
+
   function toggleHtml(key, on) {
     return '<button class="sw-toggle' + (on ? ' on' : '') + '" role="switch" aria-checked="' + on + '" data-toggle="' + key + '"><i></i></button>';
   }
 
   function renderSettings() {
     var rows = [['lfk', 'ЛФК'], ['kb', 'Комплекс с гирей'], ['sport', 'Другой спорт']];
-    var st = state.settings || { stretchAt: 780, eveAt: 1200 };
+    var st = state.settings || DEFAULT_REMINDERS;
     var html = '<div class="head"><h1>Настройки</h1></div>';
 
     html += '<div class="grp">Таймер</div>' +
@@ -259,10 +265,11 @@
       segHtml('stretchRestSec', LfkSettings.STRETCH_REST_OPTIONS.map(function (v) { return { v: v, t: v + ' с' }; }), prefs.stretchRestSec) + '</div>';
 
     html += '<div class="grp">Напоминания бота</div>' +
-      '<div class="set-row col"><span>Растяжка днём</span>' +
-      segHtml('stretchAt', STRETCH_TIMES.map(function (v) { return { v: v, t: fmtMin(v) }; }), st.stretchAt) + '</div>' +
-      '<div class="set-row col"><span>Вечернее ЛФК — начало<small>дальше повторы до ' + fmtMin(st.eveAt + 165) + '</small></span>' +
-      segHtml('eveAt', EVENING_TIMES.map(function (v) { return { v: v, t: fmtMin(v) }; }), st.eveAt) + '</div>';
+      '<div class="set-row"><span>Растяжка днём<small>одно напоминание</small></span>' + timeInput('stretchAt', st.stretchAt) + '</div>' +
+      '<div class="set-row col"><span>ЛФК: растяжка, тяга, упор<small>когда можно заниматься — напомню в начале, каждый час и за 15 минут до конца</small></span>' +
+      '<span class="range">' + timeInput('lfk.from', st.lfk.from) + '<em>—</em>' + timeInput('lfk.to', st.lfk.to) + '</span></div>' +
+      '<div class="set-row col"><span>Комплекс с гирей<small>своё окно; если совпадает с ЛФК — одно общее сообщение</small></span>' +
+      '<span class="range">' + timeInput('kb.from', st.kb.from) + '<em>—</em>' + timeInput('kb.to', st.kb.to) + '</span></div>';
 
     html += '<div class="grp">Внешний вид</div>' +
       '<div class="set-row col"><span>Тема</span>' +
@@ -278,17 +285,36 @@
     return html;
   }
 
-  function savePref(key, val) {
-    if (key === 'stretchAt' || key === 'eveAt') {
-      var next = { stretchAt: state.settings.stretchAt, eveAt: state.settings.eveAt };
-      next[key] = val;
-      state.settings = next; // сразу показываем выбор, сервер подтвердит
+  function toMinutes(v) {
+    var m = /^(\d{1,2}):(\d{2})$/.exec(v || '');
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  }
+
+  // Время напоминаний хранится на сервере (бот должен знать расписание, когда приложение закрыто).
+  function saveReminderTime(path, minutes) {
+    var cur = state.settings || DEFAULT_REMINDERS;
+    var next = JSON.parse(JSON.stringify(cur));
+    var parts = path.split('.');
+    if (parts.length === 1) next[parts[0]] = minutes;
+    else next[parts[0]][parts[1]] = minutes;
+    var w = parts[0] === 'stretchAt' ? null : next[parts[0]];
+    if (minutes === null || (w && (w.from < WINDOW_MIN_FROM || w.to > WINDOW_MAX_TO || w.to - w.from < WINDOW_MIN_LEN))) {
+      popup('Некорректное время', 'Окно должно быть от 6:00 до 23:45 и не короче 30 минут.');
       render();
-      apiCall({ action: 'saveSettings', settings: next }).then(function (r) {
-        if (r && r.settings) { state.settings = r.settings; render(); }
-      }).catch(function () { popup('Не сохранилось', 'Не удалось сохранить время напоминаний. Попробуй ещё раз.'); load(); });
       return;
     }
+    if (parts[0] === 'stretchAt' && (minutes < 360 || minutes > 1320)) {
+      popup('Некорректное время', 'Растяжка днём — от 6:00 до 22:00.');
+      render();
+      return;
+    }
+    state.settings = next;
+    apiCall({ action: 'saveSettings', settings: next }).then(function (r) {
+      if (r && r.settings) { state.settings = r.settings; render(); }
+    }).catch(function () { popup('Не сохранилось', 'Не удалось сохранить время напоминаний. Попробуй ещё раз.'); load(); });
+  }
+
+  function savePref(key, val) {
     prefs[key] = val;
     prefs = LfkSettings.normalizePrefs(prefs);
     LfkSettings.savePrefs(prefs);
@@ -334,6 +360,9 @@
         var v = b.dataset.val;
         savePref(b.dataset.pref, /^\d+$/.test(v) ? Number(v) : v);
       };
+    });
+    root.querySelectorAll('[data-time]').forEach(function (b) {
+      b.onchange = function () { saveReminderTime(b.dataset.time, toMinutes(b.value)); };
     });
     root.querySelectorAll('[data-toggle]').forEach(function (b) {
       b.onclick = function () { savePref(b.dataset.toggle, !prefs[b.dataset.toggle]); };
