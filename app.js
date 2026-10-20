@@ -25,7 +25,7 @@
     play: '<path d="M8 5.8v12.4a.8.8 0 0 0 1.2.7l9.8-6.2a.8.8 0 0 0 0-1.4L9.2 5.1A.8.8 0 0 0 8 5.8Z"/>',
     help: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.3-2.4 3.7M12 17h.01"/>',
     check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
-    gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M2.8 12h2.4M18.8 12h2.4M4.9 19.1l1.7-1.7M17.4 6.6l1.7-1.7"/>',
+    gear: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>',
   };
 
@@ -180,7 +180,7 @@
       '<p class="muted">' + esc(LfkHints.COURSE_NOTE) + '</p></div>';
   }
 
-  var MILESTONES = [[3, '3 дня'], [7, 'неделя'], [14, '2 недели'], [30, 'месяц'], [50, '50 дней'], [92, 'финиш']];
+  var MILESTONES = [[3, '3 дня'], [7, 'неделя'], [14, '2 нед.'], [30, 'месяц'], [50, '50 дн.'], [92, 'финиш']];
 
   function cheer(p) {
     if (!p.streak) return 'Начнём серию сегодня — одно занятие, и день засчитан.';
@@ -198,12 +198,12 @@
     var p = state.progress;
     var html = '<div class="banner"><div class="big"><b>' + (p.streak ? '🔥 ' : '') + p.streak + '</b><span>' + dayWord(p.streak) + ' ЛФК без пропусков</span></div>' +
       '<small>' + esc(cheer(p)) + '</small><div class="chips2">' +
-      '<span><i class="dot kb"></i>гиря ' + p.week.kettlebell + '/3' + (p.kbWeeks > 1 ? ' · ' + p.kbWeeks + ' нед. подряд' : '') + '</span>' +
-      (p.timed && p.timed.total ? '<span>' + icon('timer') + p.timed.timed + ' из ' + p.timed.total + ' с таймером</span>' : '') +
-      '<span>до финиша ' + p.daysLeft + ' дн.</span></div></div>';
+      '<span><i class="dot kb"></i>гиря ' + p.week.kettlebell + '/3' + (p.kbWeeks > 1 ? ' · ' + p.kbWeeks + ' нед.' : '') + '</span>' +
+      (p.timed && p.timed.total ? '<span>' + icon('timer') + p.timed.timed + ' из ' + p.timed.total + '</span>' : '') +
+      '<span>' + p.daysLeft + ' дн. до финиша</span></div></div>';
 
     html += '<div class="badges">' + MILESTONES.map(function (m) {
-      return '<span class="badge' + (p.bestStreak >= m[0] ? ' on' : '') + '">' + (p.bestStreak >= m[0] ? icon('check') : '') + m[1] + '</span>';
+      return '<span class="badge' + (p.bestStreak >= m[0] ? ' on' : '') + '">' + m[1] + '</span>';
     }).join('') + '</div>';
 
     var ym = ui.month;
@@ -221,7 +221,7 @@
           '<span class="dots">' + (d.k ? '<b class="k"></b>' : '') + (d.s ? '<b class="s"></b>' : '') + '</span></button>';
       });
     });
-    html += '</div><div class="legend"><span><i class="dot lfk"></i>кольцо — ЛФК за день</span><span><i class="dot kb"></i>гиря</span><span><i class="dot sport"></i>спорт</span><span><i class="dot red"></i>пропуск</span></div>';
+    html += '</div><div class="legend"><span><i class="dot lfk"></i>ЛФК</span><span><i class="dot kb"></i>гиря</span><span><i class="dot sport"></i>спорт</span><span><i class="dot red"></i>пропуск</span></div>';
 
     if (p.misses.length) {
       html += '<div class="misses"><b>Пропуски</b>' + p.misses.slice(-10).reverse().map(function (m) {
@@ -313,7 +313,7 @@
       '<button data-tab="progress" class="' + (ui.tab === 'progress' ? 'on' : '') + '">Прогресс</button></div>' +
       '<button class="gear' + (ui.tab === 'settings' ? ' on' : '') + '" data-tab="settings" aria-label="Настройки">' + icon('gear') + '</button></div>' +
       (ui.tab === 'today' ? renderToday() : ui.tab === 'progress' ? renderProgress() : renderSettings()) +
-      '<div class="ver">Версия ' + esc(state.version) + '</div>';
+      (ui.tab === 'settings' ? '<div class="ver">Версия ' + esc(state.version) + '</div>' : '');
 
     root.querySelectorAll('[data-tab]').forEach(function (b) {
       b.onclick = function () { ui.tab = b.dataset.tab; render(); };

@@ -23,40 +23,40 @@
 html, body { margin: 0; background: var(--bg2); color: var(--text); font: 17px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
 button { font: inherit; color: inherit; cursor: pointer; }
 /* В полноэкранном режиме Telegram задаёт отступы под системную панель и свои кнопки. */
-:root { --top: calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)); }
-#app { max-width: 520px; margin: 0 auto; padding: calc(16px + var(--top)) 20px calc(48px + env(safe-area-inset-bottom)); }
+:root { --top: calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)); --bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px)); }
+#app { max-width: 520px; margin: 0 auto; padding: calc(8px + var(--top)) 20px calc(16px + var(--bottom)); }
 .ic { width: 22px; height: 22px; flex: none; display: block; }
 .ic.fill { fill: currentColor; stroke: none; }
 .loading, .error { text-align: center; color: var(--hint); padding: 48px 16px; }
 .error button { margin-top: 12px; }
 
 /* --- вкладки и шапка */
-.topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 26px; }
+.topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
 .tabs { flex: 1; display: flex; background: var(--soft); border-radius: 14px; padding: 4px; }
 .tabs button { flex: 1; border: 0; background: none; padding: 9px; border-radius: 11px; font-size: 16px; color: var(--hint); }
 .tabs button.on { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); font-weight: 600; }
 .gear { flex: none; width: 46px; height: 46px; border: 0; border-radius: 14px; background: var(--soft); color: var(--hint); display: flex; align-items: center; justify-content: center; }
 .gear.on { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
 .head { margin: 0 4px 8px; }
-.head h1 { font-size: 28px; line-height: 1.2; margin: 0; font-weight: 600; letter-spacing: -.01em; }
+.head h1 { font-size: 26px; line-height: 1.2; margin: 0; font-weight: 600; letter-spacing: -.01em; }
 .head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
 .sum { color: var(--hint); font-size: 16px; }
 .seg { flex: none; display: flex; background: var(--soft); border-radius: 9px; padding: 2px; }
 .seg button { border: 0; background: none; padding: 5px 10px; border-radius: 7px; font-size: 14px; }
 .seg button { color: var(--hint); }
 .seg button.on { background: var(--card); color: var(--text); font-weight: 500; }
-.grp { font-size: 14px; font-weight: 500; color: var(--hint); margin: 30px 6px 12px; }
+.grp { font-size: 14px; font-weight: 500; color: var(--hint); margin: 18px 6px 8px; }
 
 /* --- строки упражнений */
-.row { display: flex; align-items: center; background: var(--card); border-radius: 20px; margin-bottom: 12px; min-height: 76px; }
-.ex { flex: 1; min-width: 0; display: flex; align-items: center; gap: 16px; text-align: left; border: 0; background: none; padding: 16px 8px 16px 18px; }
+.row { display: flex; align-items: center; background: var(--card); border-radius: 20px; margin-bottom: 8px; min-height: 64px; }
+.ex { flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; text-align: left; border: 0; background: none; padding: 10px 8px 10px 16px; }
 .chk { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 1.8px solid color-mix(in srgb, var(--accent) 70%, transparent); display: flex; align-items: center; justify-content: center; color: var(--accent-text); transition: background .2s, border-color .2s; }
 .chk .ic { width: 18px; height: 18px; stroke-width: 2.2; }
 .row.done .chk { background: var(--accent); border-color: var(--accent); }
 .txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .name { font-size: 17px; font-weight: 500; }
 .dose { font-size: 15px; color: var(--hint); }
-.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
 .tags:empty { display: none; }
 .tag { font-style: normal; font-size: 13px; font-weight: 400; padding: 1px 8px; border-radius: 20px; border: 1px solid var(--track); color: var(--hint); }
 .tag.rest { border-color: color-mix(in srgb, var(--green) 45%, transparent); color: var(--green); }
@@ -68,8 +68,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .start.running { background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber); }
 .info { border: 0; width: 42px; height: 42px; border-radius: 50%; background: none; color: var(--hint); display: flex; align-items: center; justify-content: center; }
 .info.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
-.chip { border: 1px solid var(--track); background: none; border-radius: 22px; padding: 9px 16px; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+.chips { display: flex; flex-wrap: nowrap; gap: 8px; margin-top: 2px; }
+.chip { border: 1px solid var(--track); background: none; border-radius: 22px; padding: 9px 12px; font-size: 14px; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .chip .ic { width: 16px; height: 16px; stroke-width: 2.2; }
 .chip .plus { color: var(--hint); font-size: 18px; line-height: 1; }
 .chip.on { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: transparent; color: var(--accent); }
@@ -85,18 +85,18 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .btn.ghost { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
 
 /* --- прогресс */
-.banner { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, transparent), color-mix(in srgb, var(--c-lfk) 14%, transparent)); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 22px; padding: 18px 20px; }
+.banner { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, transparent), color-mix(in srgb, var(--c-lfk) 14%, transparent)); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 22px; padding: 14px 18px; }
 .banner .big { display: flex; align-items: baseline; gap: 10px; }
-.banner .big b { font-size: 40px; font-weight: 200; line-height: 1.1; }
+.banner .big b { font-size: 32px; font-weight: 200; line-height: 1.1; }
 .banner .big span { font-size: 16px; }
-.banner small { display: block; margin-top: 6px; font-size: 15px; color: var(--hint); }
-.chips2 { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-.chips2 span { display: flex; align-items: center; border: 1px solid var(--track); border-radius: 16px; padding: 4px 11px; font-size: 13px; }
+.banner small { display: block; margin-top: 4px; font-size: 14px; color: var(--hint); }
+.chips2 { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chips2 span { display: flex; align-items: center; border: 1px solid var(--track); border-radius: 16px; padding: 3px 9px; font-size: 12px; white-space: nowrap; }
 .chips2 .ic { width: 14px; height: 14px; margin-right: 5px; }
-.badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
-.badge { display: flex; align-items: center; gap: 4px; border: 1px solid var(--track); border-radius: 16px; padding: 4px 11px; font-size: 13px; color: var(--hint); opacity: .75; }
+.badges { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; margin-top: 10px; }
+.badge { display: flex; align-items: center; border: 1px solid var(--track); border-radius: 16px; padding: 3px 8px; font-size: 12px; color: var(--hint); opacity: .75; white-space: nowrap; }
 .badge .ic { width: 14px; height: 14px; stroke-width: 2.4; }
-.badge.on { color: var(--c-lfk); border-color: color-mix(in srgb, var(--c-lfk) 50%, transparent); opacity: 1; }
+.badge.on { color: var(--c-lfk); border-color: color-mix(in srgb, var(--c-lfk) 60%, transparent); background: color-mix(in srgb, var(--c-lfk) 14%, transparent); opacity: 1; font-weight: 600; }
 :root[data-theme="dark"] { --bg: #17212b; --bg2: #0e1621; --text: #f5f5f5; --hint: #7d8b99; --card: #1c2a38; --accent: #2aabee; --accent-text: #fff; color-scheme: dark; }
 :root[data-theme="light"] { --bg: #ffffff; --bg2: #f1f2f6; --text: #111111; --hint: #8a8f98; --card: #ffffff; --accent: #2aabee; --accent-text: #fff; color-scheme: light; }
 .set-row small { display: block; color: var(--hint); font-size: 13px; margin-top: 2px; }
@@ -122,14 +122,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .hint.with-ic { display: flex; align-items: center; gap: 6px; }
 .hint .ic { width: 16px; height: 16px; }
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin: 20px 0 10px; }
-.cal-head { margin: 26px 0 12px; }
+.cal-head { margin: 8px 0 2px; }
 .cal-head button { border: 0; background: none; color: var(--accent); font-size: 22px; width: 42px; height: 42px; border-radius: 50%; }
 .cal-head span { font-weight: 500; font-size: 18px; }
 .cal { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 4px; }
 .cal .wd { text-align: center; color: var(--hint); font-size: 12px; padding-bottom: 4px; }
-.cal .cell { position: relative; display: flex; flex-direction: column; align-items: center; height: 58px; border: 0; background: none; padding: 0; }
-.cal .cell.link::after { content: ''; position: absolute; top: 20px; left: calc(50% + 22px); width: calc(100% - 44px); height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--c-lfk) 60%, transparent); }
-.ring { position: relative; isolation: isolate; width: 40px; height: 40px; margin-top: 2px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--text); }
+.cal .cell { position: relative; display: flex; flex-direction: column; align-items: center; height: 47px; border: 0; background: none; padding: 0; }
+.cal .cell.link::after { content: ''; position: absolute; top: 16px; left: calc(50% + 18px); width: calc(100% - 36px); height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--c-lfk) 60%, transparent); }
+.ring { position: relative; isolation: isolate; width: 35px; height: 35px; margin-top: 1px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--text); }
 .ring::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: 50%; background: conic-gradient(var(--c-lfk) 0 var(--p, 0%), var(--track) 0); -webkit-mask: radial-gradient(circle, transparent 60%, #000 62%); mask: radial-gradient(circle, transparent 60%, #000 62%); }
 .ring.full { color: #fff; font-weight: 600; }
 .ring.full::before { background: var(--c-lfk); -webkit-mask: none; mask: none; }
@@ -137,21 +137,21 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .ring.today { box-shadow: 0 0 0 2px var(--bg2), 0 0 0 3.5px var(--accent); font-weight: 600; }
 .ring.future { color: var(--hint); opacity: .6; }
 .ring.future::before { background: var(--soft); }
-.dots { display: flex; gap: 3px; height: 7px; margin-top: 4px; }
-.dots b { width: 6px; height: 6px; border-radius: 50%; }
+.dots { display: flex; gap: 3px; height: 6px; margin-top: 2px; }
+.dots b { width: 5px; height: 5px; border-radius: 50%; }
 .dots .k { background: var(--c-kb); }
 .dots .s { background: var(--c-sport); }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
 .dot.lfk { background: var(--c-lfk); } .dot.kb { background: var(--c-kb); } .dot.sport { background: var(--c-sport); } .dot.red { background: var(--red); }
 .cal .none { color: var(--hint); }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-size: 13px; color: var(--hint); }
+.legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; margin-top: 8px; font-size: 13px; color: var(--hint); }
 
 .misses { margin-top: 24px; background: var(--card); border-radius: 20px; padding: 16px 18px; font-size: 15px; }
 .misses div { padding: 4px 0; }
-.ver { text-align: center; color: var(--hint); font-size: 12px; margin-top: 28px; }
+.ver { text-align: center; color: var(--hint); font-size: 12px; margin-top: 12px; }
 
 /* --- экран таймера */
-#overlay { position: fixed; inset: 0; background: var(--bg); z-index: 10; display: flex; flex-direction: column; align-items: center; padding: calc(14px + var(--top)) 20px calc(20px + env(safe-area-inset-bottom)); }
+#overlay { position: fixed; inset: 0; background: var(--bg); z-index: 10; display: flex; flex-direction: column; align-items: center; padding: calc(8px + var(--top)) 20px calc(16px + var(--bottom)); }
 .ov-head { width: 100%; max-width: 480px; display: flex; align-items: center; justify-content: space-between; font-size: 22px; font-weight: 500; }
 .ov-head button { border: 0; background: var(--soft); color: var(--hint); width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 #overlay .sets { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; margin: 34px 0 30px; max-width: 320px; }
