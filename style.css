@@ -38,7 +38,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .gear { flex: none; width: 46px; height: 46px; border: 0; border-radius: 14px; background: var(--soft); color: var(--hint); display: flex; align-items: center; justify-content: center; }
 .gear.on { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
 .head { margin: 0 4px 8px; }
-.head h1 { font-size: 26px; line-height: 1.2; margin: 0; font-weight: 600; letter-spacing: -.01em; }
+.head h1 { font-size: 26px; line-height: 1.2; margin: 0; font-weight: 600; letter-spacing: -.01em; text-align: center; }
 .head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
 .sum { color: var(--hint); font-size: 16px; }
 .seg { flex: none; display: flex; background: var(--soft); border-radius: 9px; padding: 2px; }
