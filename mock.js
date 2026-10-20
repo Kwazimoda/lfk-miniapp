@@ -18,7 +18,7 @@
         var status = k === 'stretch' ? 'required' : session ? (rest ? 'rest' : 'required') : k === 'kettlebell' ? (wd === 0 ? 'off' : 'required') : 'optional';
         var note = { stretch: '10 раз · каждый день', pull: 'статика 45 с × 3 · занятие 4 из 6 · 1 из 3 за неделю', push: '45 с × 3 · 1 из 3 за неделю', kettlebell: wd === 0 ? 'сегодня DDX' : '1 из 3 за неделю' }[k] || 'по желанию';
         if (session && rest) note = 'сегодня отдых';
-        return { item: k, label: LABELS[k][0], group: LABELS[k][1], status: status, done: !!m[k], note: note };
+        return { item: k, label: LABELS[k][0], group: LABELS[k][1], status: status, done: !!m[k], timed: !!m[k + 'Timed'], note: note };
       }),
     };
   }
@@ -45,7 +45,7 @@
       version: (window.LFK_CONFIG || {}).version || 'dev',
       today: view(today, 1), yesterday: view('2026-10-19', 0),
       pullPhase: { phase: 'static', done: 3, staticSessions: 6 },
-      progress: { streak: 1, totalMisses: 0, misses: [], daysLeft: 83, daysDone: 9, daysTotal: 92, week: { pullPush: 1, kettlebell: 1 }, kettlebellShortWeeks: [] },
+      progress: { timed: { timed: 1, total: 4 }, streak: 1, totalMisses: 0, misses: [], daysLeft: 83, daysDone: 9, daysTotal: 92, week: { pullPush: 1, kettlebell: 1 }, kettlebellShortWeeks: [] },
       month: m, calendar: cal.calendar, days: cal.days,
     };
   }
@@ -54,7 +54,9 @@
     call: function (body) {
       if (body.action === 'mark') {
         if (rest && (body.item === 'pull' || body.item === 'push') && body.value && !body.confirm) return { needsConfirm: true };
-        (marks[body.date] = marks[body.date] || {})[body.item] = body.value;
+        var day = (marks[body.date] = marks[body.date] || {});
+        day[body.item] = body.value;
+        day[body.item + 'Timed'] = !!(body.value && body.timed);
         return { ok: true, state: state(body.month) };
       }
       return state(body.month);

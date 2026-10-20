@@ -7,6 +7,12 @@
   var LABELS = { stretch: 'Растяжка нерва', pull: 'Тяга резинки', push: 'Упор на пальцы', pullPush: 'Тяга + упор', kettlebell: 'Гиря', ddx: 'DDX', run: 'Пробежка', tennis: 'Теннис' };
 
   var ui = { tab: 'today', day: 'today', month: null, busy: false, hint: null };
+  var SESSION_KEY = 'lfk-session';
+  var session = null; // текущий таймер подходов (LfkSession), показывается поверх списка
+  var overlayOpen = false;
+  var timerId = null;
+  var audio = null;
+  var wakeLock = null;
   var state = null;
 
   function esc(s) {
@@ -47,10 +53,12 @@
   function load() {
     return apiCall({ action: 'state', month: ui.month }).then(function (s) {
       if (s.error) throw new Error(s.error);
+      var first = !state;
       state = s;
       ui.month = s.month;
       checkVersion(s);
       render();
+      if (first) offerResume();
     }).catch(showError);
   }
 
@@ -62,7 +70,7 @@
     document.getElementById('retry').onclick = function () { root.innerHTML = '<div class="loading">Загружаю…</div>'; load(); };
   }
 
-  function mark(item, value, confirm) {
+  function mark(item, value, confirm, timed) {
     if (ui.busy) return;
     var date = state[ui.day].date;
     ui.busy = true;
@@ -70,12 +78,12 @@
     // Оптимистично показываем галочку сразу.
     state[ui.day].list.forEach(function (x) { if (x.item === item) x.done = value; });
     render();
-    apiCall({ action: 'mark', date: date, item: item, value: value, confirm: !!confirm, month: ui.month }).then(function (r) {
+    apiCall({ action: 'mark', date: date, item: item, value: value, confirm: !!confirm, timed: !!timed, month: ui.month }).then(function (r) {
       ui.busy = false;
       if (r.needsConfirm) {
         state[ui.day].list.forEach(function (x) { if (x.item === item) x.done = !value; });
         render();
-        confirmBox('Сегодня по плану отдых для тяги и упора. Точно записать?', function (ok) { if (ok) mark(item, value, true); });
+        confirmBox('Сегодня по плану отдых для тяги и упора. Точно записать?', function (ok) { if (ok) mark(item, value, true, timed); });
         return;
       }
       if (r.error) throw new Error(r.error === 'bad_date' ? 'Отметить можно только сегодня или вчера' : r.error);
@@ -98,9 +106,13 @@
       html += '<div class="grp">' + g[1] + '</div>';
       v.list.filter(function (x) { return x.group === g[0]; }).forEach(function (x) {
         var hint = LfkHints.hintFor(x.item, state.pullPhase);
+        var canTime = ui.day === 'today' && LfkSession.planFor(x.item, state.pullPhase) && !x.timed;
+        var running = session && session.item === x.item;
         html += '<div class="row ' + (x.done ? 'done ' : '') + esc(x.status) + '">' +
           '<button class="ex" data-item="' + esc(x.item) + '" data-done="' + (x.done ? 1 : 0) + '">' +
-          '<span class="chk">' + (x.done ? '✓' : '') + '</span><span>' + esc(x.label) + '<small>' + esc(x.note) + '</small></span></button>' +
+          '<span class="chk">' + (x.done ? '✓' : '') + '</span><span>' + esc(x.label) + (x.timed ? ' <span class="timed">⏱</span>' : '') +
+          '<small>' + esc(x.note) + '</small></span></button>' +
+          (canTime ? '<button class="start" data-start="' + esc(x.item) + '">' + (running ? '▶ ' + session.completed + '/' + session.plan.sets : '▶') + '</button>' : '') +
           (hint ? '<button class="info' + (ui.hint === x.item ? ' on' : '') + '" data-hint="' + esc(x.item) + '" aria-label="Как делать">i</button>' : '') +
           '</div>';
         if (hint && ui.hint === x.item) html += renderHint(hint);
@@ -127,7 +139,8 @@
       '<div class="tile"><b>' + p.totalMisses + '</b>пропусков всего</div>' +
       '<div class="tile"><b>' + p.daysLeft + '</b>дней до финиша</div></div>' +
       '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
-      '<div class="hint">' + p.daysDone + ' из ' + p.daysTotal + ' дней · финиш 11 января · неделя: тяга + упор ' + p.week.pullPush + '/3, гиря ' + p.week.kettlebell + '/3</div>';
+      '<div class="hint">' + p.daysDone + ' из ' + p.daysTotal + ' дней · финиш 11 января · неделя: тяга + упор ' + p.week.pullPush + '/3, гиря ' + p.week.kettlebell + '/3</div>' +
+      (p.timed ? '<div class="hint">⏱ с таймером: ' + p.timed.timed + ' из ' + p.timed.total + ' занятий ЛФК</div>' : '');
 
     var ym = ui.month;
     html += '<div class="cal-head"><button id="prev" aria-label="Предыдущий месяц">‹</button><span>' + MONTHS[+ym.slice(5, 7) - 1] + ' ' + ym.slice(0, 4) + '</span><button id="next" aria-label="Следующий месяц">›</button></div>';
@@ -171,6 +184,9 @@
     root.querySelectorAll('[data-item]').forEach(function (b) {
       b.onclick = function () { mark(b.dataset.item, b.dataset.done !== '1'); };
     });
+    root.querySelectorAll('[data-start]').forEach(function (b) {
+      b.onclick = function () { openSession(b.dataset.start); };
+    });
     root.querySelectorAll('[data-hint]').forEach(function (b) {
       b.onclick = function () { ui.hint = ui.hint === b.dataset.hint ? null : b.dataset.hint; render(); };
     });
@@ -183,7 +199,209 @@
     var next = document.getElementById('next');
     if (prev) prev.onclick = function () { ui.month = LfkCalendar.shiftMonth(ui.month, -1); load(); };
     if (next) next.onclick = function () { ui.month = LfkCalendar.shiftMonth(ui.month, 1); load(); };
+    renderOverlay();
   }
+
+  // --- таймер подходов
+
+  function saveSession() {
+    try {
+      if (session && session.phase !== 'done') localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      else localStorage.removeItem(SESSION_KEY);
+    } catch (e) {}
+  }
+
+  function initAudio() {
+    try {
+      if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+      if (audio.state === 'suspended') audio.resume();
+    } catch (e) {}
+  }
+
+  function beep(freq, ms) {
+    if (!audio) return;
+    try {
+      var o = audio.createOscillator();
+      var g = audio.createGain();
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.25, audio.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + ms / 1000);
+      o.connect(g);
+      g.connect(audio.destination);
+      o.start();
+      o.stop(audio.currentTime + ms / 1000);
+    } catch (e) {}
+  }
+
+  function signal(ev) {
+    if (ev === 'warn') {
+      beep(880, 150);
+      try { tg && tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
+    } else {
+      beep(660, 600);
+      try { tg && tg.HapticFeedback.notificationOccurred('success'); } catch (e) {}
+    }
+  }
+
+  function keepAwake(on) {
+    try {
+      if (on && !wakeLock && navigator.wakeLock) {
+        navigator.wakeLock.request('screen').then(function (l) { wakeLock = l; l.addEventListener('release', function () { wakeLock = null; }); }).catch(function () {});
+      } else if (!on && wakeLock) {
+        wakeLock.release();
+        wakeLock = null;
+      }
+    } catch (e) {}
+  }
+
+  function openSession(item) {
+    initAudio();
+    var row = state.today.list.filter(function (x) { return x.item === item; })[0];
+    var begin = function (confirmed) {
+      if (!session || session.item !== item) {
+        var plan = LfkSession.planFor(item, state.pullPhase);
+        // ?mock=1&fast=1 — короткие подходы для просмотра в браузере.
+        if (window.LFK_MOCK && /[?&]fast=1/.test(location.search)) { plan.holdMs = 5000; plan.restMs = plan.restMs && 4000; }
+        session = LfkSession.create(item, state.today.date, plan);
+        session.confirm = !!confirmed;
+      }
+      overlayOpen = true;
+      saveSession();
+      render();
+    };
+    if (row && row.status === 'rest' && !(session && session.item === item)) {
+      confirmBox('Сегодня по плану отдых для тяги и упора. Всё равно делать?', function (ok) { if (ok) begin(true); });
+    } else {
+      begin(false);
+    }
+  }
+
+  function closeOverlay() {
+    overlayOpen = false;
+    keepAwake(false);
+    render();
+  }
+
+  function sessionAction(act) {
+    var now = Date.now();
+    initAudio();
+    if (act === 'start') session = LfkSession.start(session, now);
+    if (act === 'done-set') session = LfkSession.doneSet(session, now);
+    if (act === 'pause') session = LfkSession.pause(session, now);
+    if (act === 'resume') session = LfkSession.resume(session, now);
+    if (act === 'skip') session = LfkSession.skipRest(session);
+    if (act === 'close') return closeOverlay();
+    afterChange([]);
+  }
+
+  function afterChange(events) {
+    events.forEach(signal);
+    saveSession();
+    keepAwake(session && (session.phase === 'hold' || session.phase === 'rest'));
+    if (session && session.phase === 'done' && !session.marked) {
+      session.marked = true;
+      signal('end');
+      mark(session.item, true, session.confirm, true);
+      saveSession();
+    }
+    renderOverlay();
+  }
+
+  function fmt(ms) {
+    var s = Math.ceil(ms / 1000);
+    return Math.floor(s / 60) + ':' + (s % 60 < 10 ? '0' : '') + (s % 60);
+  }
+
+  function renderOverlay() {
+    var el = document.getElementById('overlay');
+    if (!overlayOpen || !session) {
+      if (el) el.remove();
+      if (timerId) { clearInterval(timerId); timerId = null; }
+      return;
+    }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'overlay';
+      document.body.appendChild(el);
+    }
+    var s = session;
+    var p = s.plan;
+    var now = Date.now();
+    var left = LfkSession.remainingMs(s, now);
+    var label = LABELS[s.item];
+    var total = s.phase === 'rest' ? p.restMs : p.holdMs;
+    var frac = (s.phase === 'hold' || s.phase === 'rest' || s.phase === 'paused') && total ? 1 - left / total : 0;
+
+    var dots = '';
+    for (var i = 1; i <= p.sets; i++) {
+      var cls = i <= s.completed ? 'f' : (i === s.completed + 1 && (s.phase === 'hold' || s.phase === 'paused') ? 'p' : '');
+      dots += '<i class="' + cls + '"></i>';
+    }
+
+    var big, small, btn = '', btn2 = '';
+    if (s.phase === 'done') {
+      big = '✓'; small = p.sets + ' из ' + p.sets + ' · записано ⏱';
+      btn = '<button class="btn" data-act="close">Готово — к списку</button>';
+    } else if (s.phase === 'rest') {
+      big = fmt(left); small = 'отдых';
+      btn = '<button class="btn ghost" data-act="skip">Пропустить отдых</button>';
+    } else if (s.phase === 'hold') {
+      big = fmt(left); small = 'держим · подход ' + s.set + ' из ' + p.sets;
+      btn = '<button class="btn ghost" data-act="pause">Пауза</button>';
+    } else if (s.phase === 'paused') {
+      big = fmt(left); small = 'пауза · подход ' + s.set + ' из ' + p.sets;
+      btn = '<button class="btn" data-act="resume">Продолжить</button>';
+    } else if (p.mode === 'hold') {
+      big = fmt(p.holdMs); small = 'подход ' + s.set + ' из ' + p.sets;
+      btn = '<button class="btn" data-act="start">Начать подход ' + s.set + '</button>';
+    } else {
+      big = String(p.reps); small = 'повторений' + (p.sets > 1 ? ' · подход ' + s.set + ' из ' + p.sets : '');
+      btn = '<button class="btn" data-act="done-set">' + (p.sets > 1 ? 'Сделал подход ' + s.set : 'Сделал') + '</button>';
+    }
+    var color = s.phase === 'rest' ? 'var(--green)' : 'var(--accent)';
+    var ring = s.phase === 'done' ? 'background:var(--green);color:#fff'
+      : 'background:radial-gradient(var(--bg) 60%, transparent 61%), conic-gradient(' + color + ' 0 ' + Math.round(frac * 100) + '%, var(--track) 0)';
+
+    el.innerHTML = '<div class="ov-head"><span>' + esc(label) + '</span><button data-act="close" aria-label="Закрыть">×</button></div>' +
+      '<div class="sets">' + dots + '</div>' +
+      '<div class="ring" style="' + ring + '"><b>' + big + '</b><small>' + esc(small) + '</small></div>' +
+      btn + btn2 +
+      '<div class="ov-note">Боль — не выше 3–4 из 10. Отдых между подходами — 1 минута.</div>';
+    el.querySelectorAll('[data-act]').forEach(function (b) {
+      b.onclick = function () { sessionAction(b.dataset.act); };
+    });
+
+    var live = s.phase === 'hold' || s.phase === 'rest';
+    if (live && !timerId) {
+      timerId = setInterval(function () {
+        var r = LfkSession.tick(session, Date.now());
+        session = r.state;
+        afterChange(r.events);
+      }, 250);
+    } else if (!live && timerId) {
+      clearInterval(timerId);
+      timerId = null;
+    }
+  }
+
+  function offerResume() {
+    try {
+      var saved = LfkSession.restore(localStorage.getItem(SESSION_KEY), state.today.date);
+      if (!saved) return;
+      session = LfkSession.tick(saved, Date.now()).state;
+      confirmBox('Продолжить «' + LABELS[session.item] + '»? Сделано подходов: ' + session.completed + ' из ' + session.plan.sets + '.', function (ok) {
+        if (ok) { overlayOpen = true; afterChange([]); }
+        else { session = null; saveSession(); render(); }
+      });
+    } catch (e) {}
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && session && overlayOpen) {
+      keepAwake(false);
+      afterChange(LfkSession.tick(session, Date.now()).events);
+    }
+  });
 
   if (tg && tg.initData) {
     document.documentElement.classList.add('tg');
