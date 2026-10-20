@@ -9,7 +9,7 @@
   var ui = { tab: 'today', day: 'today', month: null, busy: false, hint: null };
   var colors = LfkSettings.normalize(null);
   var prefs = LfkSettings.normalizePrefs(null);
-  var DEFAULT_REMINDERS = { stretchAt: 780, lfk: { from: 1200, to: 1380 }, kb: { from: 1200, to: 1380 }, run: { from: 1020, to: 1140 } };
+  var DEFAULT_REMINDERS = { stretchAt: 780, ddxAt: 1140, lfk: { from: 1200, to: 1380 }, kb: { from: 1200, to: 1380 }, run: { from: 1020, to: 1140 } };
   var WINDOW_MIN_FROM = 360;
   var WINDOW_MAX_TO = 1425;
   var WINDOW_MIN_LEN = 30;
@@ -139,10 +139,11 @@
     var canTime = ui.day === 'today' && LfkSession.planFor(x.item, state.pullPhase, prefs) && !x.timed;
     var dose = x.item === 'stretch' ? '10 × 5 с, отдых ' + prefs.stretchRestSec + ' с' : x.dose;
     var running = session && session.item === x.item && session.phase !== 'done';
-    var html = '<div class="row ' + (x.done ? 'done ' : '') + esc(x.status) + '">' +
+    var slim = !dose; // без дозировки — название и метка в одной строке
+    var html = '<div class="row ' + (x.done ? 'done ' : '') + (slim ? 'slim ' : '') + esc(x.status) + '">' +
       '<button class="ex" data-item="' + esc(x.item) + '" data-done="' + (x.done ? 1 : 0) + '" aria-label="Отметить вручную">' +
       '<span class="chk">' + (x.done ? icon(x.timed ? 'timer' : 'check') : '') + '</span>' +
-      '<span class="txt"><span class="name">' + esc(x.label) + '</span>' +
+      '<span class="txt' + (slim ? ' inline' : '') + '"><span class="name">' + esc(x.label) + '</span>' +
       (dose ? '<span class="dose">' + esc(dose) + '</span>' : '') +
       '<span class="tags">' + tagsHtml(x.tags) + '</span></span></button>' +
       '<span class="acts">' +
@@ -165,12 +166,7 @@
       '<button data-day="yesterday" class="' + (ui.day === 'yesterday' ? 'on' : '') + '">Вчера</button></div></div>';
 
     html += '<div class="grp">ЛФК</div>' + lfk.map(renderRow).join('');
-    html += '<div class="grp">Спорт</div>' + v.list.filter(function (x) { return x.item === 'kettlebell' || x.item === 'run'; }).map(renderRow).join('');
-    var extra = v.list.filter(function (x) { return x.group === 'sport' && x.item !== 'kettlebell' && x.item !== 'run'; });
-    html += '<div class="chips">' + extra.map(function (x) {
-      return '<button class="chip' + (x.done ? ' on' : '') + '" data-item="' + esc(x.item) + '" data-done="' + (x.done ? 1 : 0) + '">' +
-        (x.done ? icon('check') : '<span class="plus">+</span>') + esc(x.label) + '</button>';
-    }).join('') + '</div>';
+    html += '<div class="grp">Спорт</div>' + v.list.filter(function (x) { return x.group === 'sport'; }).map(renderRow).join('');
     if (ui.day === 'yesterday') html += '<div class="note-small">За вчера — только ручные отметки, без таймера.</div>';
     return html;
   }
@@ -221,10 +217,10 @@
         var cls = 'ring' + (d.fill && !d.miss ? ' full' : '') + (d.miss ? ' miss' : '') + (d.today ? ' today' : '') + (d.future ? ' future' : '');
         html += '<button class="cell' + (link ? ' link' : '') + '" data-day="' + iso + '">' +
           '<span class="' + cls + '" style="--p:' + Math.round((d.p || 0) * 100) + '%">' + +iso.slice(8, 10) + '</span>' +
-          '<span class="dots">' + (d.k ? '<b class="k"></b>' : '') + (d.r ? '<b class="r"></b>' : '') + (d.s ? '<b class="s"></b>' : '') + '</span></button>';
+          '<span class="dots">' + (d.k ? '<b class="k"></b>' : '') + (d.r ? '<b class="r"></b>' : '') + (d.d ? '<b class="d"></b>' : '') + (d.t ? '<b class="t"></b>' : '') + '</span></button>';
       });
     });
-    html += '</div><div class="legend"><span><i class="dot lfk"></i>ЛФК</span><span><i class="dot kb"></i>гиря</span><span><i class="dot run"></i>бег</span><span><i class="dot sport"></i>спорт</span><span><i class="dot red"></i>пропуск</span></div>';
+    html += '</div><div class="legend"><span><i class="dot lfk"></i>ЛФК</span><span><i class="dot kb"></i>гиря</span><span><i class="dot run"></i>бег</span><span><i class="dot ddx"></i>DDX</span><span><i class="dot tennis"></i>теннис</span><span><i class="dot red"></i>пропуск</span></div>';
 
     if (p.misses.length) {
       html += '<div class="misses"><b>Пропуски</b>' + p.misses.slice(-10).reverse().map(function (m) {
@@ -253,7 +249,7 @@
   }
 
   function renderSettings() {
-    var rows = [['lfk', 'ЛФК'], ['kb', 'Комплекс с гирей'], ['run', 'Бег'], ['sport', 'Другой спорт (DDX, теннис)']];
+    var rows = [['lfk', 'ЛФК'], ['kb', 'Комплекс с гирей'], ['run', 'Бег'], ['ddx', 'DDX Атлетика'], ['tennis', 'Теннис']];
     var st = state.settings || DEFAULT_REMINDERS;
     var html = '<div class="head"><h1>Настройки</h1></div>';
 
@@ -267,6 +263,7 @@
 
     html += '<div class="grp">Напоминания бота</div>' +
       '<div class="set-row"><span>Растяжка днём<small>одно напоминание</small></span>' + timeInput('stretchAt', st.stretchAt) + '</div>' +
+      '<div class="set-row"><span>DDX: записаться<small>каждое воскресенье</small></span>' + timeInput('ddxAt', st.ddxAt) + '</div>' +
       '<div class="set-row col"><span>ЛФК: растяжка, тяга, упор<small>когда можно заниматься — напомню в начале, каждый час и за 15 минут до конца</small></span>' +
       '<span class="range">' + timeInput('lfk.from', st.lfk.from) + '<em>—</em>' + timeInput('lfk.to', st.lfk.to) + '</span></div>' +
       '<div class="set-row col"><span>Комплекс с гирей<small>своё окно; если совпадает с ЛФК — одно общее сообщение</small></span>' +
@@ -300,14 +297,14 @@
     var parts = path.split('.');
     if (parts.length === 1) next[parts[0]] = minutes;
     else next[parts[0]][parts[1]] = minutes;
-    var w = parts[0] === 'stretchAt' ? null : next[parts[0]];
+    var w = parts.length === 1 ? null : next[parts[0]];
     if (minutes === null || (w && (w.from < WINDOW_MIN_FROM || w.to > WINDOW_MAX_TO || w.to - w.from < WINDOW_MIN_LEN))) {
       popup('Некорректное время', 'Окно должно быть от 6:00 до 23:45 и не короче 30 минут.');
       render();
       return;
     }
-    if (parts[0] === 'stretchAt' && (minutes < 360 || minutes > 1320)) {
-      popup('Некорректное время', 'Растяжка днём — от 6:00 до 22:00.');
+    if (parts.length === 1 && (minutes < 360 || minutes > 1320)) {
+      popup('Некорректное время', 'Это напоминание можно поставить с 6:00 до 22:00.');
       render();
       return;
     }
