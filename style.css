@@ -1,5 +1,5 @@
 :root {
-  --c-lfk: #43a047; --c-kb: #f5a623; --c-sport: #2aabee;
+  --c-lfk: #43a047; --c-kb: #f5a623; --c-run: #14b8a6; --c-sport: #2aabee;
   --bg: var(--tg-theme-bg-color, #ffffff);
   --bg2: var(--tg-theme-secondary-bg-color, #f1f2f6);
   --text: var(--tg-theme-text-color, #111111);
@@ -144,9 +144,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .dots { display: flex; gap: 3px; height: 6px; margin-top: 2px; }
 .dots b { width: 5px; height: 5px; border-radius: 50%; }
 .dots .k { background: var(--c-kb); }
+.dots .r { background: var(--c-run); }
 .dots .s { background: var(--c-sport); }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
-.dot.lfk { background: var(--c-lfk); } .dot.kb { background: var(--c-kb); } .dot.sport { background: var(--c-sport); } .dot.red { background: var(--red); }
+.dot.lfk { background: var(--c-lfk); } .dot.kb { background: var(--c-kb); } .dot.run { background: var(--c-run); } .dot.sport { background: var(--c-sport); } .dot.red { background: var(--red); }
 .cal .none { color: var(--hint); }
 .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; margin-top: 8px; font-size: 13px; color: var(--hint); }
 

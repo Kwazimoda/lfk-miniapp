@@ -2,7 +2,7 @@
 // (CloudStorage — общие для всех устройств), иначе в localStorage.
 (function (root) {
   var PALETTE = ['#43a047', '#2aabee', '#f5a623', '#e5534b', '#9b6bdf', '#14b8a6', '#ec4899', '#8a8f98'];
-  var DEFAULTS = { lfk: '#43a047', kb: '#f5a623', sport: '#2aabee' };
+  var DEFAULTS = { lfk: '#43a047', kb: '#f5a623', run: '#14b8a6', sport: '#2aabee' };
   var KEY = 'lfk_colors';
   var PREFS_KEY = 'lfk_prefs';
   var REST_OPTIONS = [30, 45, 60, 90];
@@ -67,6 +67,7 @@
     var st = root.document.documentElement.style;
     st.setProperty('--c-lfk', colors.lfk);
     st.setProperty('--c-kb', colors.kb);
+    st.setProperty('--c-run', colors.run);
     st.setProperty('--c-sport', colors.sport);
   }
 

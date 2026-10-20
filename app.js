@@ -4,12 +4,12 @@
   var root = document.getElementById('app');
   var MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
   var MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
-  var LABELS = { stretch: 'Растяжка нерва', pull: 'Тяга резинки', push: 'Упор на пальцы', pullPush: 'Тяга + упор', kettlebell: 'Гиря', ddx: 'DDX', run: 'Пробежка', tennis: 'Теннис' };
+  var LABELS = { stretch: 'Растяжка нерва', pull: 'Тяга резинки', push: 'Упор на пальцы', pullPush: 'Тяга + упор', kettlebell: 'Гиря', ddx: 'DDX', run: 'Бег', tennis: 'Теннис' };
 
   var ui = { tab: 'today', day: 'today', month: null, busy: false, hint: null };
   var colors = LfkSettings.normalize(null);
   var prefs = LfkSettings.normalizePrefs(null);
-  var DEFAULT_REMINDERS = { stretchAt: 780, lfk: { from: 1200, to: 1380 }, kb: { from: 1200, to: 1380 } };
+  var DEFAULT_REMINDERS = { stretchAt: 780, lfk: { from: 1200, to: 1380 }, kb: { from: 1200, to: 1380 }, run: { from: 1020, to: 1140 } };
   var WINDOW_MIN_FROM = 360;
   var WINDOW_MAX_TO = 1425;
   var WINDOW_MIN_LEN = 30;
@@ -165,8 +165,8 @@
       '<button data-day="yesterday" class="' + (ui.day === 'yesterday' ? 'on' : '') + '">Вчера</button></div></div>';
 
     html += '<div class="grp">ЛФК</div>' + lfk.map(renderRow).join('');
-    html += '<div class="grp">Спорт</div>' + v.list.filter(function (x) { return x.item === 'kettlebell'; }).map(renderRow).join('');
-    var extra = v.list.filter(function (x) { return x.group === 'sport' && x.item !== 'kettlebell'; });
+    html += '<div class="grp">Спорт</div>' + v.list.filter(function (x) { return x.item === 'kettlebell' || x.item === 'run'; }).map(renderRow).join('');
+    var extra = v.list.filter(function (x) { return x.group === 'sport' && x.item !== 'kettlebell' && x.item !== 'run'; });
     html += '<div class="chips">' + extra.map(function (x) {
       return '<button class="chip' + (x.done ? ' on' : '') + '" data-item="' + esc(x.item) + '" data-done="' + (x.done ? 1 : 0) + '">' +
         (x.done ? icon('check') : '<span class="plus">+</span>') + esc(x.label) + '</button>';
@@ -201,6 +201,7 @@
     var html = '<div class="banner"><div class="big"><b>' + (p.streak ? '🔥 ' : '') + p.streak + '</b><span>' + dayWord(p.streak) + ' ЛФК без пропусков</span></div>' +
       '<small>' + esc(cheer(p)) + '</small><div class="chips2">' +
       '<span><i class="dot kb"></i>гиря ' + p.week.kettlebell + '/3' + (p.kbWeeks > 1 ? ' · ' + p.kbWeeks + ' нед.' : '') + '</span>' +
+      '<span><i class="dot run"></i>бег ' + (p.week.run >= 2 ? p.week.run + ' · отлично' : p.week.run + '/1' + (p.runWeeks > 1 ? ' · ' + p.runWeeks + ' нед.' : '')) + '</span>' +
       (p.timed && p.timed.total ? '<span>' + icon('timer') + p.timed.timed + ' из ' + p.timed.total + '</span>' : '') +
       '<span>' + p.daysLeft + ' дн. до финиша</span></div></div>';
 
@@ -220,10 +221,10 @@
         var cls = 'ring' + (d.fill && !d.miss ? ' full' : '') + (d.miss ? ' miss' : '') + (d.today ? ' today' : '') + (d.future ? ' future' : '');
         html += '<button class="cell' + (link ? ' link' : '') + '" data-day="' + iso + '">' +
           '<span class="' + cls + '" style="--p:' + Math.round((d.p || 0) * 100) + '%">' + +iso.slice(8, 10) + '</span>' +
-          '<span class="dots">' + (d.k ? '<b class="k"></b>' : '') + (d.s ? '<b class="s"></b>' : '') + '</span></button>';
+          '<span class="dots">' + (d.k ? '<b class="k"></b>' : '') + (d.r ? '<b class="r"></b>' : '') + (d.s ? '<b class="s"></b>' : '') + '</span></button>';
       });
     });
-    html += '</div><div class="legend"><span><i class="dot lfk"></i>ЛФК</span><span><i class="dot kb"></i>гиря</span><span><i class="dot sport"></i>спорт</span><span><i class="dot red"></i>пропуск</span></div>';
+    html += '</div><div class="legend"><span><i class="dot lfk"></i>ЛФК</span><span><i class="dot kb"></i>гиря</span><span><i class="dot run"></i>бег</span><span><i class="dot sport"></i>спорт</span><span><i class="dot red"></i>пропуск</span></div>';
 
     if (p.misses.length) {
       html += '<div class="misses"><b>Пропуски</b>' + p.misses.slice(-10).reverse().map(function (m) {
@@ -252,7 +253,7 @@
   }
 
   function renderSettings() {
-    var rows = [['lfk', 'ЛФК'], ['kb', 'Комплекс с гирей'], ['sport', 'Другой спорт']];
+    var rows = [['lfk', 'ЛФК'], ['kb', 'Комплекс с гирей'], ['run', 'Бег'], ['sport', 'Другой спорт (DDX, теннис)']];
     var st = state.settings || DEFAULT_REMINDERS;
     var html = '<div class="head"><h1>Настройки</h1></div>';
 
@@ -269,7 +270,9 @@
       '<div class="set-row col"><span>ЛФК: растяжка, тяга, упор<small>когда можно заниматься — напомню в начале, каждый час и за 15 минут до конца</small></span>' +
       '<span class="range">' + timeInput('lfk.from', st.lfk.from) + '<em>—</em>' + timeInput('lfk.to', st.lfk.to) + '</span></div>' +
       '<div class="set-row col"><span>Комплекс с гирей<small>своё окно; если совпадает с ЛФК — одно общее сообщение</small></span>' +
-      '<span class="range">' + timeInput('kb.from', st.kb.from) + '<em>—</em>' + timeInput('kb.to', st.kb.to) + '</span></div>';
+      '<span class="range">' + timeInput('kb.from', st.kb.from) + '<em>—</em>' + timeInput('kb.to', st.kb.to) + '</span></div>' +
+      '<div class="set-row col"><span>Бег<small>пока на неделе нет пробежки: в начале окна и за 15 минут до конца</small></span>' +
+      '<span class="range">' + timeInput('run.from', st.run.from) + '<em>—</em>' + timeInput('run.to', st.run.to) + '</span></div>';
 
     html += '<div class="grp">Внешний вид</div>' +
       '<div class="set-row col"><span>Тема</span>' +

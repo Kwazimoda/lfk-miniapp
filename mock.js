@@ -2,7 +2,7 @@
 (function () {
   var LABELS = {
     stretch: ['Растяжка нерва', 'lfk'], pull: ['Тяга резинки', 'lfk'], push: ['Упор на пальцы', 'lfk'],
-    kettlebell: ['Комплекс с гирей', 'sport'], ddx: ['DDX Атлетика', 'sport'], run: ['Пробежка', 'sport'], tennis: ['Теннис', 'sport'],
+    kettlebell: ['Комплекс с гирей', 'sport'], ddx: ['DDX Атлетика', 'sport'], run: ['Бег', 'sport'], tennis: ['Теннис', 'sport'],
   };
   var NAMES = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
   var today = '2026-10-20';
@@ -19,7 +19,7 @@
         var note = { stretch: '10 раз · каждый день', pull: 'статика 45 с × 3 · занятие 4 из 6 · 1 из 3 за неделю', push: '45 с × 3 · 1 из 3 за неделю', kettlebell: wd === 0 ? 'сегодня DDX' : '1 из 3 за неделю' }[k] || 'по желанию';
         if (session && rest) note = 'сегодня отдых';
         var dose = { stretch: '10 × 5 с, отдых 10 с', pull: 'статика 45 с × 3', push: '45 с × 3' }[k] || '';
-        var tags = { stretch: ['каждый день'], pull: ['этап 4/6', 'неделя 1/3'], push: ['неделя 1/3'], kettlebell: [wd === 0 ? 'сегодня DDX' : 'неделя 1/3'] }[k] || ['по желанию'];
+        var tags = { stretch: ['каждый день'], pull: ['этап 4/6', 'неделя 1/3'], push: ['неделя 1/3'], kettlebell: [wd === 0 ? 'сегодня DDX' : 'неделя 1/3'], run: ['неделя 0/1'] }[k] || ['по желанию'];
         if (session && rest) tags = ['отдых'];
         return { item: k, label: LABELS[k][0], group: LABELS[k][1], status: status, done: !!m[k], timed: !!m[k + 'Timed'], dose: dose, tags: tags, note: note };
       }),
@@ -49,7 +49,7 @@
       if (month === '2026-10') {
         if (d > 20) { o.future = true; }
         else if (d === 20) { o.today = true; o.p = 0.33; }
-        else if (d >= 14) { o.p = 1; o.fill = d % 2 === 0; o.chain = true; o.k = d % 3 === 0; o.s = d % 4 === 0; }
+        else if (d >= 14) { o.p = 1; o.fill = d % 2 === 0; o.chain = true; o.k = d % 3 === 0; o.r = d === 16; o.s = d % 4 === 0; }
         else if (d === 13) { o.p = 0.66; o.miss = true; }
         else if (d >= 11) { o.p = 0.5; o.k = d === 12; }
       }
@@ -58,7 +58,7 @@
     return out;
   }
 
-  var mockSettings = { stretchAt: 780, lfk: { from: 1200, to: 1380 }, kb: { from: 1200, to: 1380 } };
+  var mockSettings = { stretchAt: 780, lfk: { from: 1200, to: 1380 }, kb: { from: 1200, to: 1380 }, run: { from: 1020, to: 1140 } };
 
   function state(month) {
     var m = month || today.slice(0, 7);
@@ -69,7 +69,7 @@
       pullPhase: { phase: 'static', done: 3, staticSessions: 6 },
       settings: mockSettings,
       calDays: calDays(m),
-      progress: { bestStreak: 6, kbWeeks: 2, streakStart: '2026-10-15', timed: { timed: 4, total: 5 }, streak: 6, totalMisses: 0, misses: [], daysLeft: 83, daysDone: 9, daysTotal: 92, week: { pullPush: 1, kettlebell: 1 }, kettlebellShortWeeks: [] },
+      progress: { bestStreak: 6, kbWeeks: 2, streakStart: '2026-10-15', timed: { timed: 4, total: 5 }, streak: 6, totalMisses: 0, misses: [], daysLeft: 83, daysDone: 9, daysTotal: 92, week: { pullPush: 1, kettlebell: 1, run: 1 }, runWeeks: 2, kettlebellShortWeeks: [] },
       month: m, calendar: cal.calendar, days: cal.days,
     };
   }
