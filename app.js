@@ -6,7 +6,7 @@
   var MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
   var LABELS = { stretch: 'Растяжка нерва', pull: 'Тяга резинки', push: 'Упор на пальцы', pullPush: 'Тяга + упор', kettlebell: 'Гиря', ddx: 'DDX', run: 'Пробежка', tennis: 'Теннис' };
 
-  var ui = { tab: 'today', day: 'today', month: null, busy: false };
+  var ui = { tab: 'today', day: 'today', month: null, busy: false, hint: null };
   var state = null;
 
   function esc(s) {
@@ -97,14 +97,26 @@
     [['lfk', 'ЛФК'], ['sport', 'Спорт']].forEach(function (g) {
       html += '<div class="grp">' + g[1] + '</div>';
       v.list.filter(function (x) { return x.group === g[0]; }).forEach(function (x) {
-        html += '<button class="ex ' + (x.done ? 'done ' : '') + esc(x.status) + '" data-item="' + esc(x.item) + '" data-done="' + (x.done ? 1 : 0) + '">' +
-          '<span class="chk">' + (x.done ? '✓' : '') + '</span><span>' + esc(x.label) + '<small>' + esc(x.note) + '</small></span></button>';
+        var hint = LfkHints.hintFor(x.item, state.pullPhase);
+        html += '<div class="row ' + (x.done ? 'done ' : '') + esc(x.status) + '">' +
+          '<button class="ex" data-item="' + esc(x.item) + '" data-done="' + (x.done ? 1 : 0) + '">' +
+          '<span class="chk">' + (x.done ? '✓' : '') + '</span><span>' + esc(x.label) + '<small>' + esc(x.note) + '</small></span></button>' +
+          (hint ? '<button class="info' + (ui.hint === x.item ? ' on' : '') + '" data-hint="' + esc(x.item) + '" aria-label="Как делать">i</button>' : '') +
+          '</div>';
+        if (hint && ui.hint === x.item) html += renderHint(hint);
       });
     });
     html += ui.day === 'today'
       ? '<button class="btn ghost" id="switch-day">‹ Отметить за вчера</button>'
       : '<button class="btn" id="switch-day">Вернуться к сегодня ›</button>';
     return html;
+  }
+
+  function renderHint(h) {
+    return '<div class="hint-box"><b>' + esc(h.title) + '</b><ol>' +
+      h.steps.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ol>' +
+      h.notes.map(function (n) { return '<p>' + esc(n) + '</p>'; }).join('') +
+      '<p class="muted">' + esc(LfkHints.COURSE_NOTE) + '</p></div>';
   }
 
   function renderProgress() {
@@ -140,7 +152,7 @@
   function dayDetails(iso) {
     var d = state.days[iso];
     if (!d) return popup(humanDate(iso), 'Нет данных за этот день.');
-    var done = Object.keys(d.done).filter(function (k) { return d.done[k]; }).map(function (k) { return LABELS[k]; });
+    var done = Object.keys(d.done).filter(function (k) { return d.done[k] && k !== 'pullPush'; }).map(function (k) { return LABELS[k]; });
     var text = 'Сделано: ' + (done.length ? done.join(', ') : '—');
     if (d.misses.length) text += '\nПропущено: ' + d.misses.map(function (k) { return LABELS[k]; }).join(', ');
     popup(humanDate(iso), text);
@@ -158,6 +170,9 @@
     });
     root.querySelectorAll('[data-item]').forEach(function (b) {
       b.onclick = function () { mark(b.dataset.item, b.dataset.done !== '1'); };
+    });
+    root.querySelectorAll('[data-hint]').forEach(function (b) {
+      b.onclick = function () { ui.hint = ui.hint === b.dataset.hint ? null : b.dataset.hint; render(); };
     });
     root.querySelectorAll('[data-day]').forEach(function (b) {
       b.onclick = function () { dayDetails(b.dataset.day); };

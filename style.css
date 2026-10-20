@@ -27,10 +27,17 @@ h1 { font-size: 17px; text-align: center; margin: 4px 0 12px; font-weight: 600; 
 .tabs button.on { background: var(--card); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
 
 .grp { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--hint); margin: 14px 4px 6px; }
-.ex { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; background: var(--card); color: var(--text); border-radius: 12px; padding: 12px; margin-bottom: 8px; font: inherit; }
+.row { display: flex; align-items: stretch; background: var(--card); border-radius: 12px; margin-bottom: 8px; }
+.ex { flex: 1; display: flex; align-items: center; gap: 12px; text-align: left; border: 0; background: none; color: var(--text); padding: 12px; font: inherit; }
+.info { flex: none; width: 44px; border: 0; background: none; color: var(--accent); font: italic 600 17px Georgia, serif; }
+.info.on { color: var(--accent-text); background: var(--accent); border-radius: 0 12px 12px 0; }
+.hint-box { background: var(--card); border-left: 3px solid var(--accent); border-radius: 12px; padding: 10px 14px; margin: -2px 0 10px; font-size: 14px; }
+.hint-box ol { margin: 6px 0; padding-left: 20px; }
+.hint-box li { margin: 3px 0; }
+.hint-box p { margin: 6px 0 0; color: var(--hint); font-size: 13px; }
 .ex .chk { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--accent-text); transition: background .15s; }
-.ex.done .chk { background: var(--accent); }
-.ex.rest, .ex.off { opacity: .55; }
+.row.done .chk { background: var(--accent); }
+.row.rest .ex, .row.off .ex { opacity: .55; }
 .ex small { display: block; color: var(--hint); font-size: 12px; margin-top: 2px; }
 .btn { display: block; width: 100%; border: 0; background: var(--accent); color: var(--accent-text); border-radius: 10px; padding: 12px; font: inherit; font-weight: 600; margin-top: 14px; }
 .btn.ghost { background: none; color: var(--accent); }

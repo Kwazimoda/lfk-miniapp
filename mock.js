@@ -1,7 +1,7 @@
 // Фейковые данные для просмотра в браузере: ?mock=1. В Telegram не используется.
 (function () {
   var LABELS = {
-    stretch: ['Растяжка нерва', 'lfk'], pullPush: ['Тяга резинки + Упор на пальцы', 'lfk'],
+    stretch: ['Растяжка нерва', 'lfk'], pull: ['Тяга резинки', 'lfk'], push: ['Упор на пальцы', 'lfk'],
     kettlebell: ['Комплекс с гирей', 'sport'], ddx: ['DDX Атлетика', 'sport'], run: ['Пробежка', 'sport'], tennis: ['Теннис', 'sport'],
   };
   var NAMES = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
@@ -14,8 +14,10 @@
     return {
       date: iso, weekdayName: NAMES[wd],
       list: Object.keys(LABELS).map(function (k) {
-        var status = k === 'stretch' ? 'required' : k === 'pullPush' ? (rest ? 'rest' : 'required') : k === 'kettlebell' ? (wd === 0 ? 'off' : 'required') : 'optional';
-        var note = { stretch: 'каждый день', pullPush: rest ? 'сегодня отдых' : 'по графику сегодня · 1 из 3 за неделю', kettlebell: wd === 0 ? 'сегодня DDX' : '1 из 3 за неделю' }[k] || 'по желанию';
+        var session = k === 'pull' || k === 'push';
+        var status = k === 'stretch' ? 'required' : session ? (rest ? 'rest' : 'required') : k === 'kettlebell' ? (wd === 0 ? 'off' : 'required') : 'optional';
+        var note = { stretch: '10 раз · каждый день', pull: 'статика 45 с × 3 · занятие 4 из 6 · 1 из 3 за неделю', push: '45 с × 3 · 1 из 3 за неделю', kettlebell: wd === 0 ? 'сегодня DDX' : '1 из 3 за неделю' }[k] || 'по желанию';
+        if (session && rest) note = 'сегодня отдых';
         return { item: k, label: LABELS[k][0], group: LABELS[k][1], status: status, done: !!m[k], note: note };
       }),
     };
@@ -42,6 +44,7 @@
     return {
       version: (window.LFK_CONFIG || {}).version || 'dev',
       today: view(today, 1), yesterday: view('2026-10-19', 0),
+      pullPhase: { phase: 'static', done: 3, staticSessions: 6 },
       progress: { streak: 1, totalMisses: 0, misses: [], daysLeft: 83, daysDone: 9, daysTotal: 92, week: { pullPush: 1, kettlebell: 1 }, kettlebellShortWeeks: [] },
       month: m, calendar: cal.calendar, days: cal.days,
     };
@@ -50,7 +53,7 @@
   window.LfkMock = {
     call: function (body) {
       if (body.action === 'mark') {
-        if (rest && body.item === 'pullPush' && body.value && !body.confirm) return { needsConfirm: true };
+        if (rest && (body.item === 'pull' || body.item === 'push') && body.value && !body.confirm) return { needsConfirm: true };
         (marks[body.date] = marks[body.date] || {})[body.item] = body.value;
         return { ok: true, state: state(body.month) };
       }
