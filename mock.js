@@ -18,7 +18,10 @@
         var status = k === 'stretch' ? 'required' : session ? (rest ? 'rest' : 'required') : k === 'kettlebell' ? (wd === 0 ? 'off' : 'required') : 'optional';
         var note = { stretch: '10 раз · каждый день', pull: 'статика 45 с × 3 · занятие 4 из 6 · 1 из 3 за неделю', push: '45 с × 3 · 1 из 3 за неделю', kettlebell: wd === 0 ? 'сегодня DDX' : '1 из 3 за неделю' }[k] || 'по желанию';
         if (session && rest) note = 'сегодня отдых';
-        return { item: k, label: LABELS[k][0], group: LABELS[k][1], status: status, done: !!m[k], timed: !!m[k + 'Timed'], note: note };
+        var dose = { stretch: '10 × 5 с, отдых 10 с', pull: 'статика 45 с × 3', push: '45 с × 3' }[k] || '';
+        var tags = { stretch: ['каждый день'], pull: ['этап 4/6', 'неделя 1/3'], push: ['неделя 1/3'], kettlebell: [wd === 0 ? 'сегодня DDX' : 'неделя 1/3'] }[k] || ['по желанию'];
+        if (session && rest) tags = ['отдых'];
+        return { item: k, label: LABELS[k][0], group: LABELS[k][1], status: status, done: !!m[k], timed: !!m[k + 'Timed'], dose: dose, tags: tags, note: note };
       }),
     };
   }

@@ -98,29 +98,50 @@
 
   // --- экраны
 
+  function tagsHtml(tags) {
+    return (tags || []).map(function (t) {
+      var kind = t === 'отдых' ? ' rest' : /^этап/.test(t) ? ' phase' : '';
+      return '<i class="tag' + kind + '">' + esc(t) + '</i>';
+    }).join('');
+  }
+
+  function renderRow(x) {
+    var hint = LfkHints.hintFor(x.item, state.pullPhase);
+    var canTime = ui.day === 'today' && LfkSession.planFor(x.item, state.pullPhase) && !x.timed;
+    var running = session && session.item === x.item && session.phase !== 'done';
+    var html = '<div class="row ' + (x.done ? 'done ' : '') + esc(x.status) + '">' +
+      '<button class="ex" data-item="' + esc(x.item) + '" data-done="' + (x.done ? 1 : 0) + '" aria-label="Отметить вручную">' +
+      '<span class="chk">' + (x.done ? (x.timed ? '⏱' : '✓') : '') + '</span>' +
+      '<span class="txt"><span class="name">' + esc(x.label) + '</span>' +
+      (x.dose ? '<span class="dose">' + esc(x.dose) + '</span>' : '') +
+      '<span class="tags">' + tagsHtml(x.tags) + '</span></span></button>' +
+      '<span class="acts">' +
+      (canTime ? '<button class="start' + (running ? ' running' : '') + '" data-start="' + esc(x.item) + '" aria-label="Начать с таймером">' +
+        (running ? session.completed + '/' + session.plan.sets : '▶') + '</button>' : '') +
+      (hint ? '<button class="info' + (ui.hint === x.item ? ' on' : '') + '" data-hint="' + esc(x.item) + '" aria-label="Как делать">?</button>' : '') +
+      '</span></div>';
+    if (hint && ui.hint === x.item) html += renderHint(hint);
+    return html;
+  }
+
   function renderToday() {
     var v = state[ui.day];
-    var title = (ui.day === 'today' ? 'Сегодня' : 'Вчера') + ' · ' + v.weekdayName.toLowerCase() + ', ' + humanDate(v.date);
-    var html = '<div class="grp">' + esc(title) + '</div>';
-    [['lfk', 'ЛФК'], ['sport', 'Спорт']].forEach(function (g) {
-      html += '<div class="grp">' + g[1] + '</div>';
-      v.list.filter(function (x) { return x.group === g[0]; }).forEach(function (x) {
-        var hint = LfkHints.hintFor(x.item, state.pullPhase);
-        var canTime = ui.day === 'today' && LfkSession.planFor(x.item, state.pullPhase) && !x.timed;
-        var running = session && session.item === x.item;
-        html += '<div class="row ' + (x.done ? 'done ' : '') + esc(x.status) + '">' +
-          '<button class="ex" data-item="' + esc(x.item) + '" data-done="' + (x.done ? 1 : 0) + '">' +
-          '<span class="chk">' + (x.done ? '✓' : '') + '</span><span>' + esc(x.label) + (x.timed ? ' <span class="timed">⏱</span>' : '') +
-          '<small>' + esc(x.note) + '</small></span></button>' +
-          (canTime ? '<button class="start" data-start="' + esc(x.item) + '">' + (running ? '▶ ' + session.completed + '/' + session.plan.sets : '▶') + '</button>' : '') +
-          (hint ? '<button class="info' + (ui.hint === x.item ? ' on' : '') + '" data-hint="' + esc(x.item) + '" aria-label="Как делать">i</button>' : '') +
-          '</div>';
-        if (hint && ui.hint === x.item) html += renderHint(hint);
-      });
-    });
-    html += ui.day === 'today'
-      ? '<button class="btn ghost" id="switch-day">‹ Отметить за вчера</button>'
-      : '<button class="btn" id="switch-day">Вернуться к сегодня ›</button>';
+    var lfk = v.list.filter(function (x) { return x.group === 'lfk'; });
+    var due = lfk.filter(function (x) { return x.status === 'required' || x.done; });
+    var doneN = due.filter(function (x) { return x.done; }).length;
+    var html = '<div class="head"><h1>' + esc(v.weekdayName) + ', ' + humanDate(v.date) + '</h1><div class="head-row">' +
+      '<div class="sum">ЛФК: ' + doneN + ' из ' + due.length + (doneN === due.length && due.length ? ' — всё сделано 🎉' : '') + '</div>' +
+      '<div class="seg"><button data-day="today" class="' + (ui.day === 'today' ? 'on' : '') + '">Сегодня</button>' +
+      '<button data-day="yesterday" class="' + (ui.day === 'yesterday' ? 'on' : '') + '">Вчера</button></div></div>';
+
+    html += '<div class="grp">ЛФК</div>' + lfk.map(renderRow).join('');
+    html += '<div class="grp">Спорт</div>' + v.list.filter(function (x) { return x.item === 'kettlebell'; }).map(renderRow).join('');
+    var extra = v.list.filter(function (x) { return x.group === 'sport' && x.item !== 'kettlebell'; });
+    html += '<div class="chips">' + extra.map(function (x) {
+      return '<button class="chip' + (x.done ? ' on' : '') + '" data-item="' + esc(x.item) + '" data-done="' + (x.done ? 1 : 0) + '">' +
+        (x.done ? '✓ ' : '+ ') + esc(x.label) + '</button>';
+    }).join('') + '</div>';
+    if (ui.day === 'yesterday') html += '<div class="note-small">За вчера — только ручные отметки, без таймера.</div>';
     return html;
   }
 
@@ -190,11 +211,12 @@
     root.querySelectorAll('[data-hint]').forEach(function (b) {
       b.onclick = function () { ui.hint = ui.hint === b.dataset.hint ? null : b.dataset.hint; render(); };
     });
-    root.querySelectorAll('[data-day]').forEach(function (b) {
+    root.querySelectorAll('.cal [data-day]').forEach(function (b) {
       b.onclick = function () { dayDetails(b.dataset.day); };
     });
-    var sw = document.getElementById('switch-day');
-    if (sw) sw.onclick = function () { ui.day = ui.day === 'today' ? 'yesterday' : 'today'; render(); };
+    root.querySelectorAll('.seg [data-day]').forEach(function (b) {
+      b.onclick = function () { ui.day = b.dataset.day; ui.hint = null; render(); };
+    });
     var prev = document.getElementById('prev');
     var next = document.getElementById('next');
     if (prev) prev.onclick = function () { ui.month = LfkCalendar.shiftMonth(ui.month, -1); load(); };
@@ -234,6 +256,12 @@
   }
 
   function signal(ev) {
+    if (ev === 'end' && session && session.plan.mode === 'auto' && session.phase !== 'done') {
+      // Растяжка: высокий тон — тянем, низкий — отдыхаем.
+      beep(session.phase === 'hold' ? 880 : 520, 250);
+      try { tg && tg.HapticFeedback.impactOccurred('heavy'); } catch (e) {}
+      return;
+    }
     if (ev === 'warn') {
       beep(880, 150);
       try { tg && tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
@@ -285,7 +313,7 @@
   function sessionAction(act) {
     var now = Date.now();
     initAudio();
-    if (act === 'start') session = LfkSession.start(session, now);
+    if (act === 'start') { session = LfkSession.start(session, now); if (session.plan.mode === 'auto') beep(880, 250); }
     if (act === 'done-set') session = LfkSession.doneSet(session, now);
     if (act === 'pause') session = LfkSession.pause(session, now);
     if (act === 'resume') session = LfkSession.resume(session, now);
@@ -297,7 +325,9 @@
   function afterChange(events) {
     events.forEach(signal);
     saveSession();
-    keepAwake(session && (session.phase === 'hold' || session.phase === 'rest'));
+    var live = session && (session.phase === 'hold' || session.phase === 'rest');
+    keepAwake(live);
+    try { tg && tg.initData && (live ? tg.enableClosingConfirmation() : tg.disableClosingConfirmation()); } catch (e) {}
     if (session && session.phase === 'done' && !session.marked) {
       session.marked = true;
       signal('end');
@@ -326,47 +356,53 @@
     }
     var s = session;
     var p = s.plan;
+    var auto = p.mode === 'auto';
     var now = Date.now();
     var left = LfkSession.remainingMs(s, now);
-    var label = LABELS[s.item];
-    var total = s.phase === 'rest' ? p.restMs : p.holdMs;
+    var phase = s.phase === 'paused' ? s.pausedFrom || 'hold' : s.phase;
+    var total = phase === 'rest' ? p.restMs : p.holdMs;
     var frac = (s.phase === 'hold' || s.phase === 'rest' || s.phase === 'paused') && total ? 1 - left / total : 0;
+    var unit = auto ? 'повтор' : 'подход';
 
     var dots = '';
     for (var i = 1; i <= p.sets; i++) {
-      var cls = i <= s.completed ? 'f' : (i === s.completed + 1 && (s.phase === 'hold' || s.phase === 'paused') ? 'p' : '');
+      var cls = i <= s.completed ? 'f' : (i === s.completed + 1 && s.phase !== 'ready' && s.phase !== 'done' && phase === 'hold' ? 'p' : '');
       dots += '<i class="' + cls + '"></i>';
     }
 
-    var big, small, btn = '', btn2 = '';
+    var word, big, sub, next = '', primary = '', secondary = '', tone = 'hold';
     if (s.phase === 'done') {
-      big = '✓'; small = p.sets + ' из ' + p.sets + ' · записано ⏱';
-      btn = '<button class="btn" data-act="close">Готово — к списку</button>';
-    } else if (s.phase === 'rest') {
-      big = fmt(left); small = 'отдых';
-      btn = '<button class="btn ghost" data-act="skip">Пропустить отдых</button>';
-    } else if (s.phase === 'hold') {
-      big = fmt(left); small = 'держим · подход ' + s.set + ' из ' + p.sets;
-      btn = '<button class="btn ghost" data-act="pause">Пауза</button>';
+      word = 'Готово'; big = '✓'; sub = p.sets + ' из ' + p.sets + ' · записано с ⏱'; tone = 'done';
+      primary = '<button class="btn" data-act="close">К списку</button>';
     } else if (s.phase === 'paused') {
-      big = fmt(left); small = 'пауза · подход ' + s.set + ' из ' + p.sets;
-      btn = '<button class="btn" data-act="resume">Продолжить</button>';
-    } else if (p.mode === 'hold') {
-      big = fmt(p.holdMs); small = 'подход ' + s.set + ' из ' + p.sets;
-      btn = '<button class="btn" data-act="start">Начать подход ' + s.set + '</button>';
+      word = 'Пауза'; big = fmt(left); sub = unit + ' ' + s.set + ' из ' + p.sets; tone = 'paused';
+      primary = '<button class="btn" data-act="resume">Продолжить</button>';
+    } else if (s.phase === 'rest') {
+      word = 'Отдых'; big = fmt(left); sub = 'сделано ' + s.completed + ' из ' + p.sets; tone = 'rest';
+      next = auto ? 'Дальше: растяжка, повтор ' + (s.completed + 1) : 'Дальше: подход ' + (s.completed + 1) + ' — по кнопке';
+      secondary = auto ? '<button class="btn ghost" data-act="pause">Пауза</button>' : '<button class="btn ghost" data-act="skip">Пропустить отдых</button>';
+    } else if (s.phase === 'hold') {
+      word = auto ? 'Растяжка' : 'Держим'; big = fmt(left); sub = unit + ' ' + s.set + ' из ' + p.sets;
+      next = s.set < p.sets ? 'Дальше: отдых ' + fmt(p.restMs) : 'Последний ' + unit + '!';
+      secondary = '<button class="btn ghost" data-act="pause">Пауза</button>';
+    } else if (p.mode === 'reps') {
+      word = 'Подход ' + s.set + ' из ' + p.sets; big = String(p.reps); sub = 'повторений, в своём темпе'; tone = 'ready';
+      primary = '<button class="btn" data-act="done-set">Сделал подход ' + s.set + '</button>';
     } else {
-      big = String(p.reps); small = 'повторений' + (p.sets > 1 ? ' · подход ' + s.set + ' из ' + p.sets : '');
-      btn = '<button class="btn" data-act="done-set">' + (p.sets > 1 ? 'Сделал подход ' + s.set : 'Сделал') + '</button>';
+      word = auto ? p.sets + ' повторов подряд' : 'Подход ' + s.set + ' из ' + p.sets; big = fmt(p.holdMs); tone = 'ready';
+      sub = auto ? fmt(p.holdMs) + ' растяжка · ' + fmt(p.restMs) + ' отдых' : 'удержание';
+      primary = '<button class="btn" data-act="start">' + (auto ? 'Начать' : 'Начать подход ' + s.set) + '</button>';
     }
-    var color = s.phase === 'rest' ? 'var(--green)' : 'var(--accent)';
-    var ring = s.phase === 'done' ? 'background:var(--green);color:#fff'
-      : 'background:radial-gradient(var(--bg) 60%, transparent 61%), conic-gradient(' + color + ' 0 ' + Math.round(frac * 100) + '%, var(--track) 0)';
+    var color = tone === 'rest' ? 'var(--green)' : 'var(--accent)';
+    var ring = tone === 'done' ? 'background:var(--green);color:#fff'
+      : 'background:radial-gradient(var(--bg) 62%, transparent 63%), conic-gradient(' + color + ' 0 ' + (frac * 100).toFixed(1) + '%, var(--track) 0)';
 
-    el.innerHTML = '<div class="ov-head"><span>' + esc(label) + '</span><button data-act="close" aria-label="Закрыть">×</button></div>' +
-      '<div class="sets">' + dots + '</div>' +
-      '<div class="ring" style="' + ring + '"><b>' + big + '</b><small>' + esc(small) + '</small></div>' +
-      btn + btn2 +
-      '<div class="ov-note">Боль — не выше 3–4 из 10. Отдых между подходами — 1 минута.</div>';
+    el.className = 'tone-' + tone;
+    el.innerHTML = '<div class="ov-head"><span>' + esc(LABELS[s.item]) + '</span><button data-act="close" aria-label="Закрыть">×</button></div>' +
+      '<div class="sets' + (p.sets > 5 ? ' many' : '') + '">' + dots + '</div>' +
+      '<div class="ring" style="' + ring + '"><span class="word">' + esc(word) + '</span><b>' + big + '</b><small>' + esc(sub) + '</small></div>' +
+      '<div class="next">' + esc(next) + '</div>' +
+      '<div class="ov-actions">' + primary + secondary + '<div class="ov-note">Боль — не выше 3–4 из 10</div></div>';
     el.querySelectorAll('[data-act]').forEach(function (b) {
       b.onclick = function () { sessionAction(b.dataset.act); };
     });
@@ -407,6 +443,12 @@
     document.documentElement.classList.add('tg');
     tg.ready();
     tg.expand();
+    try {
+      // Свайп вниз не закрывает приложение — его легко сделать случайно во время упражнения.
+      if (tg.isVersionAtLeast('7.7')) tg.disableVerticalSwipes();
+      // На телефоне — весь экран; кнопки Telegram остаются поверх, контент отступает под них.
+      if (tg.isVersionAtLeast('8.0') && /^(ios|android)$/.test(tg.platform)) tg.requestFullscreen();
+    } catch (e) {}
   }
   if (!window.LFK_MOCK && !(tg && tg.initData)) {
     showError({ message: 'forbidden' });
