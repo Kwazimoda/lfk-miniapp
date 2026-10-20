@@ -101,30 +101,46 @@
     document.getElementById('retry').onclick = function () { root.innerHTML = '<div class="loading">Загружаю…</div>'; load(); };
   }
 
+  // Отметки идут в очередь: быстрые нажатия подряд не теряются, а сервер получает их по порядку.
+  var markChain = Promise.resolve();
+  var pendingMarks = 0;
+
   function mark(item, value, confirm, timed) {
-    if (ui.busy) return;
-    var date = state[ui.day].date;
-    ui.busy = true;
+    var dayKey = ui.day;
+    var date = state[dayKey].date;
     haptic();
     // Оптимистично показываем галочку сразу.
-    state[ui.day].list.forEach(function (x) { if (x.item === item) x.done = value; });
+    state[dayKey].list.forEach(function (x) { if (x.item === item) { x.done = value; if (!value) x.timed = false; } });
     render();
-    apiCall({ action: 'mark', date: date, item: item, value: value, confirm: !!confirm, timed: !!timed, month: ui.month }).then(function (r) {
-      ui.busy = false;
+    pendingMarks++;
+    markChain = markChain.then(function () {
+      return apiCall({ action: 'mark', date: date, item: item, value: value, confirm: !!confirm, timed: !!timed, month: ui.month });
+    }).then(function (r) {
+      pendingMarks--;
       if (r.needsConfirm) {
-        state[ui.day].list.forEach(function (x) { if (x.item === item) x.done = !value; });
+        state[dayKey].list.forEach(function (x) { if (x.item === item) x.done = !value; });
         render();
         confirmBox('Сегодня по плану отдых для тяги и упора. Точно записать?', function (ok) { if (ok) mark(item, value, true, timed); });
         return;
       }
       if (r.error) throw new Error(r.error === 'bad_date' ? 'Отметить можно только сегодня или вчера' : r.error);
-      state = r.state;
-      render();
+      // Состояние с сервера применяем, когда очередь пуста, — иначе оно откатит ещё не сохранённые отметки.
+      if (!pendingMarks) { state = r.state; render(); }
     }).catch(function (err) {
-      ui.busy = false;
+      pendingMarks = Math.max(0, pendingMarks - 1);
       popup('Не сохранилось', (err && err.message) || 'Попробуй ещё раз');
       load();
     });
+  }
+
+  // Если приложение пролежало в фоне до следующего дня — перечитываем данные, иначе отметки уйдут не в тот день.
+  function refreshIfNewDay() {
+    if (state && !pendingMarks && LfkCalendar.todayMsk(Date.now()) !== state.today.date) {
+      ui.day = 'today';
+      ui.selDay = null;
+      ui.month = null;
+      load().then(function () { if (state) ui.selDay = state.today.date; render(); });
+    }
   }
 
   // --- экраны
@@ -143,15 +159,16 @@
     var running = session && session.item === x.item && session.phase !== 'done';
     var slim = !dose; // без дозировки — название и метка в одной строке
     var html = '<div class="row ' + (x.done ? 'done ' : '') + (slim ? 'slim ' : '') + esc(x.status) + '">' +
-      '<button class="ex" data-item="' + esc(x.item) + '" data-done="' + (x.done ? 1 : 0) + '" aria-label="Отметить вручную">' +
+      '<button class="ex" data-item="' + esc(x.item) + '" data-done="' + (x.done ? 1 : 0) + '" aria-pressed="' + !!x.done + '" aria-label="' +
+        esc(x.label + ': ' + (x.done ? (x.timed ? 'сделано с таймером' : 'сделано') : 'не сделано') + (dose ? ', ' + dose : '') + (x.tags && x.tags.length ? ', ' + x.tags.join(', ') : '')) + '">' +
       '<span class="chk">' + (x.done ? icon(x.timed ? 'timer' : 'check') : '') + '</span>' +
       '<span class="txt' + (slim ? ' inline' : '') + '"><span class="name">' + esc(x.label) + '</span>' +
       (dose ? '<span class="dose">' + esc(dose) + '</span>' : '') +
       '<span class="tags">' + tagsHtml(x.tags) + '</span></span></button>' +
       '<span class="acts">' +
-      (canTime ? '<button class="start' + (running ? ' running' : '') + '" data-start="' + esc(x.item) + '" aria-label="Начать с таймером">' +
+      (canTime ? '<button class="start' + (running ? ' running' : '') + '" data-start="' + esc(x.item) + '" aria-label="' + esc('Начать с таймером: ' + x.label) + '">' +
         (running ? session.completed + '/' + session.plan.sets : icon('play', 'fill')) + '</button>' : '') +
-      (hint ? '<button class="info' + (ui.hint === x.item ? ' on' : '') + '" data-hint="' + esc(x.item) + '" aria-label="Как делать">' + icon('help') + '</button>' : '') +
+      (hint ? '<button class="info' + (ui.hint === x.item ? ' on' : '') + '" data-hint="' + esc(x.item) + '" aria-label="' + esc('Как делать: ' + x.label) + '" aria-expanded="' + (ui.hint === x.item) + '">' + icon('help') + '</button>' : '') +
       '</span></div>';
     if (hint && ui.hint === x.item) html += renderHint(hint);
     return html;
@@ -257,6 +274,21 @@
       (rows || '<div class="d-empty">В этот день ничего не отмечено.</div>') + '</div>';
   }
 
+  // Описание дня для экранного чтеца: дата, статус ЛФК и активности.
+  function dayAria(iso, d) {
+    var parts = [humanDate(iso)];
+    if (d.future) parts.push('впереди');
+    else if (d.miss) parts.push('есть пропуск ЛФК');
+    else if (d.p >= 1) parts.push('ЛФК выполнено');
+    else if (d.p > 0) parts.push('ЛФК частично');
+    if (d.k) parts.push('гиря');
+    if (d.r) parts.push('бег');
+    if (d.d) parts.push('DDX');
+    if (d.t) parts.push('теннис');
+    if (d.today) parts.push('сегодня');
+    return parts.join(', ');
+  }
+
   function renderProgress() {
     var p = state.progress;
     var html = renderBanner(p);
@@ -275,7 +307,7 @@
         var nextIso = week[i + 1];
         var link = d.chain && nextIso && state.calDays[nextIso] && state.calDays[nextIso].chain;
         var cls = 'ring' + (d.fill && !d.miss ? ' full' : '') + (d.miss ? ' miss' : '') + (d.today ? ' today' : '') + (d.future ? ' future' : '');
-        html += '<button class="cell' + (link ? ' link' : '') + (ui.selDay === iso ? ' sel' : '') + '" data-day="' + iso + '">' +
+        html += '<button class="cell' + (link ? ' link' : '') + (ui.selDay === iso ? ' sel' : '') + '" data-day="' + iso + '" aria-pressed="' + (ui.selDay === iso) + '" aria-label="' + esc(dayAria(iso, d)) + '">' +
           '<span class="' + cls + '" style="--p:' + Math.round((d.p || 0) * 100) + '%">' + +iso.slice(8, 10) + '</span>' +
           '<span class="dots">' + (d.k ? '<b class="k"></b>' : '') + (d.r ? '<b class="r"></b>' : '') + (d.d ? '<b class="d"></b>' : '') + (d.t ? '<b class="t"></b>' : '') + '</span></button>';
       });
@@ -433,7 +465,8 @@
         ui.selDay = b.dataset.day;
         render();
         var det = document.getElementById('details');
-        if (det && det.scrollIntoView) det.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (det && det.scrollIntoView) det.scrollIntoView({ block: 'nearest', behavior: calm ? 'auto' : 'smooth' });
       };
     });
     root.querySelectorAll('.seg [data-day]').forEach(function (b) {
@@ -655,6 +688,7 @@
   }
 
   document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') refreshIfNewDay();
     if (document.visibilityState === 'visible' && session && overlayOpen) {
       keepAwake(false);
       afterChange(LfkSession.tick(session, Date.now()).events);
@@ -665,6 +699,8 @@
     document.documentElement.classList.add('tg');
     tg.ready();
     tg.expand();
+    // Пользователь сменил тему Telegram — пересчитываем схему (если в настройках «как в Telegram»).
+    try { tg.onEvent('themeChanged', function () { LfkSettings.applyTheme(prefs.theme); }); } catch (e) {}
     try {
       // Свайп вниз не закрывает приложение — его легко сделать случайно во время упражнения.
       if (tg.isVersionAtLeast('7.7')) tg.disableVerticalSwipes();
@@ -672,6 +708,8 @@
       if (tg.isVersionAtLeast('8.0') && /^(ios|android)$/.test(tg.platform)) tg.requestFullscreen();
     } catch (e) {}
   }
+  setInterval(refreshIfNewDay, 60000);
+
   if (!window.LFK_MOCK && !(tg && tg.initData)) {
     showError({ message: 'forbidden' });
   } else {

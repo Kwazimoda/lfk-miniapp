@@ -3,8 +3,10 @@
   --bg: var(--tg-theme-bg-color, #ffffff);
   --bg2: var(--tg-theme-secondary-bg-color, #f1f2f6);
   --text: var(--tg-theme-text-color, #111111);
-  --hint: var(--tg-theme-hint-color, #8a8f98);
-  --accent: var(--tg-theme-button-color, #2aabee);
+  --hint-base: var(--tg-theme-hint-color, #8a8f98);
+  --accent-base: var(--tg-theme-button-color, #2aabee);
+  --hint: var(--hint-base);
+  --accent: var(--accent-base);
   --accent-text: var(--tg-theme-button-text-color, #ffffff);
   --card: var(--tg-theme-section-bg-color, #ffffff);
   --track: color-mix(in srgb, var(--hint) 25%, transparent);
@@ -106,7 +108,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .stat .lbl .ic { width: 13px; height: 13px; }
 .stat .lbl .dot { margin: 0; }
 .stat b { display: block; font-size: 19px; font-weight: 500; margin-top: 2px; }
-.stat small { display: block; font-size: 11px; color: var(--hint); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat small { display: block; font-size: 12px; color: var(--hint); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .b-finish { margin-top: 12px; }
 .b-finish .bar { margin: 0; }
 .b-fl { display: flex; justify-content: space-between; font-size: 12px; color: var(--hint); margin-top: 6px; }
@@ -114,8 +116,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .badge { display: flex; align-items: center; border: 1px solid var(--track); border-radius: 16px; padding: 3px 8px; font-size: 12px; color: var(--hint); opacity: .75; white-space: nowrap; }
 .badge .ic { width: 14px; height: 14px; stroke-width: 2.4; }
 .badge.on { color: var(--c-lfk); border-color: color-mix(in srgb, var(--c-lfk) 60%, transparent); background: color-mix(in srgb, var(--c-lfk) 14%, transparent); opacity: 1; font-weight: 600; }
-:root[data-theme="dark"] { --bg: #17212b; --bg2: #0e1621; --text: #f5f5f5; --hint: #7d8b99; --card: #1c2a38; --accent: #2aabee; --accent-text: #fff; color-scheme: dark; }
-:root[data-theme="light"] { --bg: #ffffff; --bg2: #f1f2f6; --text: #111111; --hint: #8a8f98; --card: #ffffff; --accent: #2aabee; --accent-text: #fff; color-scheme: light; }
+:root[data-theme="dark"] { --bg: #17212b; --bg2: #0e1621; --text: #f5f5f5; --hint-base: #7d8b99; --card: #1c2a38; --accent-base: #2aabee; --accent-text: #fff; color-scheme: dark; }
+:root[data-theme="light"] { --bg: #ffffff; --bg2: #f1f2f6; --text: #111111; --hint-base: #8a8f98; --card: #ffffff; --accent-base: #2aabee; --accent-text: #fff; color-scheme: light; }
+/* Светлая схема: подписи и акцент темнее, чтобы контраст текста был не ниже 4,5:1 (WCAG AA). */
+:root[data-scheme="light"] {
+  --hint: color-mix(in srgb, var(--hint-base) 68%, #000);
+  --accent: color-mix(in srgb, var(--accent-base) 72%, #000);
+  --green: #2e7d32; --red: #c62828; --amber: #b45309;
+}
 .set-row small { display: block; color: var(--hint); font-size: 13px; margin-top: 2px; }
 .set-row.col { flex-direction: column; align-items: stretch; gap: 12px; }
 .segs { display: flex; background: var(--soft); border-radius: 12px; padding: 3px; }
@@ -217,3 +225,22 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .d-row.rest { color: var(--hint); }
 .dot.rest { background: var(--track); }
 .d-empty { color: var(--hint); font-size: 14px; padding: 6px 0 2px; }
+
+/* --- доступность: форма, а не только цвет */
+.dots .k, .dot.kb { border-radius: 1.5px; }
+.dots .d, .dot.ddx { border-radius: 1px; transform: rotate(45deg) scale(.85); }
+.dots .t { background: transparent; box-shadow: inset 0 0 0 1.5px var(--c-tennis); }
+.dot.tennis { background: transparent; box-shadow: inset 0 0 0 2px var(--c-tennis); }
+.ring.miss::after { content: '!'; position: absolute; top: -3px; right: -3px; width: 13px; height: 13px; border-radius: 50%; background: var(--red); color: #fff; font-size: 9px; font-weight: 700; line-height: 13px; text-align: center; box-shadow: 0 0 0 2px var(--bg2); }
+
+/* --- зоны нажатия не меньше ~44 px без изменения вида */
+.seg button, .tabs button, .sw { position: relative; }
+.seg button::after, .tabs button::after { content: ''; position: absolute; inset: -7px -1px; }
+.sw::after { content: ''; position: absolute; inset: -5px; }
+
+/* --- «уменьшить движение» */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
+/* Выбранная вкладка и сегменты стоят на подкрашенном фоне — текст ещё темнее, чтобы контраст был ≥ 4,5:1. */
+:root[data-scheme="light"] .tabs button.on, :root[data-scheme="light"] .sg.on, :root[data-scheme="light"] .gear.on { color: color-mix(in srgb, var(--accent) 80%, #000); }

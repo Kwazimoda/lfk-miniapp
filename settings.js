@@ -73,14 +73,24 @@
   }
 
   // Тема: auto — как в Telegram, light/dark — принудительно (см. [data-theme] в CSS).
+  // data-scheme — фактическая схема (светлая/тёмная): по выбору в настройках, иначе как в Telegram / системе.
+  function currentScheme(theme) {
+    if (theme === 'light' || theme === 'dark') return theme;
+    var tg = root.Telegram && root.Telegram.WebApp;
+    if (tg && tg.initData && tg.colorScheme) return tg.colorScheme;
+    return root.matchMedia && root.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
   function applyTheme(theme) {
     var el = root.document.documentElement;
     if (theme === 'light' || theme === 'dark') el.setAttribute('data-theme', theme);
     else el.removeAttribute('data-theme');
+    el.setAttribute('data-scheme', currentScheme(theme));
     try {
       var tg = root.Telegram && root.Telegram.WebApp;
-      if (tg && tg.initData && theme !== 'auto') {
-        var bg = theme === 'dark' ? '#0e1621' : '#f1f2f6';
+      if (tg && tg.initData) {
+        // Принудительная тема — свои цвета шапки; «как в Telegram» — возвращаем цвета темы Telegram.
+        var bg = theme === 'dark' ? '#0e1621' : theme === 'light' ? '#f1f2f6' : 'bg_color';
         tg.setBackgroundColor(bg);
         tg.setHeaderColor(bg);
       }

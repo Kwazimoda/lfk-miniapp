@@ -24,7 +24,12 @@
     return y + '-' + pad2(m + 1);
   }
 
-  var api = { monthGrid: monthGrid, shiftMonth: shiftMonth };
+  // Дата «сегодня» по Москве (UTC+3) — по ней приложение замечает смену дня.
+  function todayMsk(nowMs) {
+    return new Date(nowMs + 3 * 3600000).toISOString().slice(0, 10);
+  }
+
+  var api = { monthGrid: monthGrid, shiftMonth: shiftMonth, todayMsk: todayMsk };
   if (typeof module !== 'undefined') module.exports = api;
   else root.LfkCalendar = api;
 })(this);
