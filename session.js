@@ -5,13 +5,15 @@
   var REST_MS = 45000;
   var HOLD_MS = 45000;
 
-  function planFor(item, phase) {
+  // prefs — личные настройки (отдых между подходами, отдых между повторами растяжки), в секундах.
+  function planFor(item, phase, prefs) {
+    var rest = prefs && prefs.restSec ? prefs.restSec * 1000 : REST_MS;
     if (item === 'push' || (item === 'pull' && (!phase || phase.phase !== 'dynamic'))) {
-      return { mode: 'hold', sets: 3, holdMs: HOLD_MS, restMs: REST_MS };
+      return { mode: 'hold', sets: 3, holdMs: HOLD_MS, restMs: rest };
     }
-    if (item === 'pull') return { mode: 'reps', sets: 3, reps: 10, restMs: REST_MS };
+    if (item === 'pull') return { mode: 'reps', sets: 3, reps: 10, restMs: rest };
     // Растяжка: повторы идут сами, без нажатий между ними.
-    if (item === 'stretch') return { mode: 'auto', sets: 10, holdMs: 5000, restMs: 10000 };
+    if (item === 'stretch') return { mode: 'auto', sets: 10, holdMs: 5000, restMs: prefs && prefs.stretchRestSec ? prefs.stretchRestSec * 1000 : 10000 };
     return null;
   }
 

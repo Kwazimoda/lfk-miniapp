@@ -58,6 +58,8 @@
     return out;
   }
 
+  var mockSettings = { stretchAt: 780, eveAt: 1200 };
+
   function state(month) {
     var m = month || today.slice(0, 7);
     var cal = calendar(m);
@@ -65,6 +67,7 @@
       version: (window.LFK_CONFIG || {}).version || 'dev',
       today: view(today, 1), yesterday: view('2026-10-19', 0),
       pullPhase: { phase: 'static', done: 3, staticSessions: 6 },
+      settings: mockSettings,
       calDays: calDays(m),
       progress: { bestStreak: 6, kbWeeks: 2, streakStart: '2026-10-15', timed: { timed: 4, total: 5 }, streak: 6, totalMisses: 0, misses: [], daysLeft: 83, daysDone: 9, daysTotal: 92, week: { pullPush: 1, kettlebell: 1 }, kettlebellShortWeeks: [] },
       month: m, calendar: cal.calendar, days: cal.days,
@@ -73,6 +76,10 @@
 
   window.LfkMock = {
     call: function (body) {
+      if (body.action === 'saveSettings') {
+        mockSettings = { stretchAt: body.settings.stretchAt, eveAt: body.settings.eveAt };
+        return { ok: true, settings: mockSettings };
+      }
       if (body.action === 'mark') {
         if (rest && (body.item === 'pull' || body.item === 'push') && body.value && !body.confirm) return { needsConfirm: true };
         var day = (marks[body.date] = marks[body.date] || {});

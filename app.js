@@ -8,6 +8,9 @@
 
   var ui = { tab: 'today', day: 'today', month: null, busy: false, hint: null };
   var colors = LfkSettings.normalize(null);
+  var prefs = LfkSettings.normalizePrefs(null);
+  var STRETCH_TIMES = [600, 660, 720, 780, 840, 900];
+  var EVENING_TIMES = [1080, 1140, 1200, 1260];
   var SESSION_KEY = 'lfk-session';
   var session = null; // текущий таймер подходов (LfkSession), показывается поверх списка
   var overlayOpen = false;
@@ -38,8 +41,17 @@
     return +iso.slice(8, 10) + ' ' + MONTHS_GEN[+iso.slice(5, 7) - 1];
   }
 
+  // Вибрация: kind — 'light' | 'medium' | 'heavy' | 'success'; учитывает настройку.
+  function buzz(kind) {
+    if (!prefs.vibe) return;
+    try {
+      if (kind === 'success') tg && tg.HapticFeedback.notificationOccurred('success');
+      else tg && tg.HapticFeedback.impactOccurred(kind);
+    } catch (e) {}
+  }
+
   function haptic() {
-    try { tg && tg.HapticFeedback.impactOccurred('light'); } catch (e) {}
+    buzz('light');
   }
 
   function popup(title, message) {
@@ -122,13 +134,14 @@
 
   function renderRow(x) {
     var hint = LfkHints.hintFor(x.item, state.pullPhase);
-    var canTime = ui.day === 'today' && LfkSession.planFor(x.item, state.pullPhase) && !x.timed;
+    var canTime = ui.day === 'today' && LfkSession.planFor(x.item, state.pullPhase, prefs) && !x.timed;
+    var dose = x.item === 'stretch' ? '10 × 5 с, отдых ' + prefs.stretchRestSec + ' с' : x.dose;
     var running = session && session.item === x.item && session.phase !== 'done';
     var html = '<div class="row ' + (x.done ? 'done ' : '') + esc(x.status) + '">' +
       '<button class="ex" data-item="' + esc(x.item) + '" data-done="' + (x.done ? 1 : 0) + '" aria-label="Отметить вручную">' +
       '<span class="chk">' + (x.done ? icon(x.timed ? 'timer' : 'check') : '') + '</span>' +
       '<span class="txt"><span class="name">' + esc(x.label) + '</span>' +
-      (x.dose ? '<span class="dose">' + esc(x.dose) + '</span>' : '') +
+      (dose ? '<span class="dose">' + esc(dose) + '</span>' : '') +
       '<span class="tags">' + tagsHtml(x.tags) + '</span></span></button>' +
       '<span class="acts">' +
       (canTime ? '<button class="start' + (running ? ' running' : '') + '" data-start="' + esc(x.item) + '" aria-label="Начать с таймером">' +
@@ -218,9 +231,44 @@
     return html;
   }
 
+  function fmtMin(m) {
+    return Math.floor(m / 60) + ':' + (m % 60 < 10 ? '0' : '') + (m % 60);
+  }
+
+  function segHtml(key, options, current, label) {
+    return '<span class="segs">' + options.map(function (o) {
+      return '<button class="sg' + (o.v === current ? ' on' : '') + '" data-pref="' + key + '" data-val="' + esc(String(o.v)) + '">' + esc(o.t) + '</button>';
+    }).join('') + '</span>';
+  }
+
+  function toggleHtml(key, on) {
+    return '<button class="sw-toggle' + (on ? ' on' : '') + '" role="switch" aria-checked="' + on + '" data-toggle="' + key + '"><i></i></button>';
+  }
+
   function renderSettings() {
     var rows = [['lfk', 'ЛФК'], ['kb', 'Комплекс с гирей'], ['sport', 'Другой спорт']];
-    var html = '<div class="head"><h1>Настройки</h1></div><div class="grp">Цвета на экране «Прогресс»</div>';
+    var st = state.settings || { stretchAt: 780, eveAt: 1200 };
+    var html = '<div class="head"><h1>Настройки</h1></div>';
+
+    html += '<div class="grp">Таймер</div>' +
+      '<div class="set-row"><span>Звук</span>' + toggleHtml('sound', prefs.sound) + '</div>' +
+      '<div class="set-row"><span>Вибрация</span>' + toggleHtml('vibe', prefs.vibe) + '</div>' +
+      '<div class="set-row col"><span>Отдых между подходами<small>тяга и упор</small></span>' +
+      segHtml('restSec', LfkSettings.REST_OPTIONS.map(function (v) { return { v: v, t: v + ' с' }; }), prefs.restSec) + '</div>' +
+      '<div class="set-row col"><span>Отдых между повторами<small>растяжка нерва</small></span>' +
+      segHtml('stretchRestSec', LfkSettings.STRETCH_REST_OPTIONS.map(function (v) { return { v: v, t: v + ' с' }; }), prefs.stretchRestSec) + '</div>';
+
+    html += '<div class="grp">Напоминания бота</div>' +
+      '<div class="set-row col"><span>Растяжка днём</span>' +
+      segHtml('stretchAt', STRETCH_TIMES.map(function (v) { return { v: v, t: fmtMin(v) }; }), st.stretchAt) + '</div>' +
+      '<div class="set-row col"><span>Вечернее ЛФК — начало<small>дальше повторы до ' + fmtMin(st.eveAt + 165) + '</small></span>' +
+      segHtml('eveAt', EVENING_TIMES.map(function (v) { return { v: v, t: fmtMin(v) }; }), st.eveAt) + '</div>';
+
+    html += '<div class="grp">Внешний вид</div>' +
+      '<div class="set-row col"><span>Тема</span>' +
+      segHtml('theme', [{ v: 'auto', t: 'Как в Telegram' }, { v: 'light', t: 'Светлая' }, { v: 'dark', t: 'Тёмная' }], prefs.theme) + '</div>';
+
+    html += '<div class="grp">Цвета на экране «Прогресс»</div>';
     rows.forEach(function (r) {
       html += '<div class="set-row"><span>' + r[1] + '</span><span class="swatches">' + LfkSettings.PALETTE.map(function (c) {
         return '<button class="sw' + (colors[r[0]] === c ? ' on' : '') + '" style="background:' + c + '" data-color="' + c + '" data-key="' + r[0] + '" aria-label="' + c + '"></button>';
@@ -228,6 +276,26 @@
     });
     html += '<button class="btn ghost" id="reset-colors">Сбросить цвета</button>';
     return html;
+  }
+
+  function savePref(key, val) {
+    if (key === 'stretchAt' || key === 'eveAt') {
+      var next = { stretchAt: state.settings.stretchAt, eveAt: state.settings.eveAt };
+      next[key] = val;
+      state.settings = next; // сразу показываем выбор, сервер подтвердит
+      render();
+      apiCall({ action: 'saveSettings', settings: next }).then(function (r) {
+        if (r && r.settings) { state.settings = r.settings; render(); }
+      }).catch(function () { popup('Не сохранилось', 'Не удалось сохранить время напоминаний. Попробуй ещё раз.'); load(); });
+      return;
+    }
+    prefs[key] = val;
+    prefs = LfkSettings.normalizePrefs(prefs);
+    LfkSettings.savePrefs(prefs);
+    if (key === 'theme') LfkSettings.applyTheme(prefs.theme);
+    if (key === 'sound' && val) { initAudio(); beep(660, 150); }
+    if (key === 'vibe' && val) buzz('medium');
+    render();
   }
 
   function dayDetails(iso) {
@@ -260,6 +328,15 @@
         LfkSettings.apply(colors);
         render();
       };
+    });
+    root.querySelectorAll('[data-pref]').forEach(function (b) {
+      b.onclick = function () {
+        var v = b.dataset.val;
+        savePref(b.dataset.pref, /^\d+$/.test(v) ? Number(v) : v);
+      };
+    });
+    root.querySelectorAll('[data-toggle]').forEach(function (b) {
+      b.onclick = function () { savePref(b.dataset.toggle, !prefs[b.dataset.toggle]); };
     });
     var rc = document.getElementById('reset-colors');
     if (rc) rc.onclick = function () { colors = LfkSettings.normalize(null); LfkSettings.save(colors); LfkSettings.apply(colors); render(); };
@@ -299,7 +376,7 @@
   }
 
   function beep(freq, ms) {
-    if (!audio) return;
+    if (!audio || !prefs.sound) return;
     try {
       var o = audio.createOscillator();
       var g = audio.createGain();
@@ -317,15 +394,15 @@
     if (ev === 'end' && session && session.plan.mode === 'auto' && session.phase !== 'done') {
       // Растяжка: высокий тон — тянем, низкий — отдыхаем.
       beep(session.phase === 'hold' ? 880 : 520, 250);
-      try { tg && tg.HapticFeedback.impactOccurred('heavy'); } catch (e) {}
+      buzz('heavy');
       return;
     }
     if (ev === 'warn') {
       beep(880, 150);
-      try { tg && tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
+      buzz('medium');
     } else {
       beep(660, 600);
-      try { tg && tg.HapticFeedback.notificationOccurred('success'); } catch (e) {}
+      buzz('success');
     }
   }
 
@@ -345,7 +422,7 @@
     var row = state.today.list.filter(function (x) { return x.item === item; })[0];
     var begin = function (confirmed) {
       if (!session || session.item !== item) {
-        var plan = LfkSession.planFor(item, state.pullPhase);
+        var plan = LfkSession.planFor(item, state.pullPhase, prefs);
         // ?mock=1&fast=1 — короткие подходы для просмотра в браузере.
         if (window.LFK_MOCK && /[?&]fast=1/.test(location.search)) { plan.holdMs = 5000; plan.restMs = plan.restMs && 4000; }
         session = LfkSession.create(item, state.today.date, plan);
@@ -511,9 +588,11 @@
   if (!window.LFK_MOCK && !(tg && tg.initData)) {
     showError({ message: 'forbidden' });
   } else {
-    LfkSettings.load(function (c) {
+    LfkSettings.load(function (c, p) {
       colors = c;
+      prefs = p;
       LfkSettings.apply(colors);
+      LfkSettings.applyTheme(prefs.theme);
       load();
     });
   }
