@@ -15,6 +15,19 @@
   var wakeLock = null;
   var state = null;
 
+  // Тонкие линейные иконки (24×24, stroke = currentColor) — в стиле Lucide.
+  var ICON_PATHS = {
+    timer: '<circle cx="12" cy="13.5" r="7.5"/><path d="M12 10v3.5l2.2 1.8M10 2.5h4M12 2.5V6M18.6 6.4l1.4-1.4"/>',
+    play: '<path d="M8 5.8v12.4a.8.8 0 0 0 1.2.7l9.8-6.2a.8.8 0 0 0 0-1.4L9.2 5.1A.8.8 0 0 0 8 5.8Z"/>',
+    help: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.3-2.4 3.7M12 17h.01"/>',
+    check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  };
+
+  function icon(name, cls) {
+    return '<svg class="ic ' + (cls || '') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON_PATHS[name] + '</svg>';
+  }
+
   function esc(s) {
     return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
   }
@@ -111,14 +124,14 @@
     var running = session && session.item === x.item && session.phase !== 'done';
     var html = '<div class="row ' + (x.done ? 'done ' : '') + esc(x.status) + '">' +
       '<button class="ex" data-item="' + esc(x.item) + '" data-done="' + (x.done ? 1 : 0) + '" aria-label="Отметить вручную">' +
-      '<span class="chk">' + (x.done ? (x.timed ? '⏱' : '✓') : '') + '</span>' +
+      '<span class="chk">' + (x.done ? icon(x.timed ? 'timer' : 'check') : '') + '</span>' +
       '<span class="txt"><span class="name">' + esc(x.label) + '</span>' +
       (x.dose ? '<span class="dose">' + esc(x.dose) + '</span>' : '') +
       '<span class="tags">' + tagsHtml(x.tags) + '</span></span></button>' +
       '<span class="acts">' +
       (canTime ? '<button class="start' + (running ? ' running' : '') + '" data-start="' + esc(x.item) + '" aria-label="Начать с таймером">' +
-        (running ? session.completed + '/' + session.plan.sets : '▶') + '</button>' : '') +
-      (hint ? '<button class="info' + (ui.hint === x.item ? ' on' : '') + '" data-hint="' + esc(x.item) + '" aria-label="Как делать">?</button>' : '') +
+        (running ? session.completed + '/' + session.plan.sets : icon('play', 'fill')) + '</button>' : '') +
+      (hint ? '<button class="info' + (ui.hint === x.item ? ' on' : '') + '" data-hint="' + esc(x.item) + '" aria-label="Как делать">' + icon('help') + '</button>' : '') +
       '</span></div>';
     if (hint && ui.hint === x.item) html += renderHint(hint);
     return html;
@@ -139,7 +152,7 @@
     var extra = v.list.filter(function (x) { return x.group === 'sport' && x.item !== 'kettlebell'; });
     html += '<div class="chips">' + extra.map(function (x) {
       return '<button class="chip' + (x.done ? ' on' : '') + '" data-item="' + esc(x.item) + '" data-done="' + (x.done ? 1 : 0) + '">' +
-        (x.done ? '✓ ' : '+ ') + esc(x.label) + '</button>';
+        (x.done ? icon('check') : '<span class="plus">+</span>') + esc(x.label) + '</button>';
     }).join('') + '</div>';
     if (ui.day === 'yesterday') html += '<div class="note-small">За вчера — только ручные отметки, без таймера.</div>';
     return html;
@@ -161,7 +174,7 @@
       '<div class="tile"><b>' + p.daysLeft + '</b>дней до финиша</div></div>' +
       '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
       '<div class="hint">' + p.daysDone + ' из ' + p.daysTotal + ' дней · финиш 11 января · неделя: тяга + упор ' + p.week.pullPush + '/3, гиря ' + p.week.kettlebell + '/3</div>' +
-      (p.timed ? '<div class="hint">⏱ с таймером: ' + p.timed.timed + ' из ' + p.timed.total + ' занятий ЛФК</div>' : '');
+      (p.timed ? '<div class="hint with-ic">' + icon('timer') + ' с таймером: ' + p.timed.timed + ' из ' + p.timed.total + ' занятий ЛФК</div>' : '');
 
     var ym = ui.month;
     html += '<div class="cal-head"><button id="prev" aria-label="Предыдущий месяц">‹</button><span>' + MONTHS[+ym.slice(5, 7) - 1] + ' ' + ym.slice(0, 4) + '</span><button id="next" aria-label="Следующий месяц">›</button></div>';
@@ -372,7 +385,7 @@
 
     var word, big, sub, next = '', primary = '', secondary = '', tone = 'hold';
     if (s.phase === 'done') {
-      word = 'Готово'; big = '✓'; sub = p.sets + ' из ' + p.sets + ' · записано с ⏱'; tone = 'done';
+      word = 'Готово'; big = icon('check', 'big'); sub = p.sets + ' из ' + p.sets + ' · с таймером'; tone = 'done';
       primary = '<button class="btn" data-act="close">К списку</button>';
     } else if (s.phase === 'paused') {
       word = 'Пауза'; big = fmt(left); sub = unit + ' ' + s.set + ' из ' + p.sets; tone = 'paused';
@@ -395,10 +408,10 @@
     }
     var color = tone === 'rest' ? 'var(--green)' : 'var(--accent)';
     var ring = tone === 'done' ? 'background:var(--green);color:#fff'
-      : 'background:radial-gradient(var(--bg) 62%, transparent 63%), conic-gradient(' + color + ' 0 ' + (frac * 100).toFixed(1) + '%, var(--track) 0)';
+      : 'background:radial-gradient(var(--bg) 66.5%, transparent 67%), conic-gradient(' + color + ' 0 ' + (frac * 100).toFixed(1) + '%, var(--track) 0)';
 
     el.className = 'tone-' + tone;
-    el.innerHTML = '<div class="ov-head"><span>' + esc(LABELS[s.item]) + '</span><button data-act="close" aria-label="Закрыть">×</button></div>' +
+    el.innerHTML = '<div class="ov-head"><span>' + esc(LABELS[s.item]) + '</span><button data-act="close" aria-label="Закрыть">' + icon('close') + '</button></div>' +
       '<div class="sets' + (p.sets > 5 ? ' many' : '') + '">' + dots + '</div>' +
       '<div class="ring" style="' + ring + '"><span class="word">' + esc(word) + '</span><b>' + big + '</b><small>' + esc(sub) + '</small></div>' +
       '<div class="next">' + esc(next) + '</div>' +
