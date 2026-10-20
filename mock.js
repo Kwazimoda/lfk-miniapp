@@ -35,8 +35,10 @@
       out[iso] = colors[String(d)] || (d < 19 ? 'none' : 'none');
     }
     if (month === '2026-10') {
-      days['2026-10-19'] = { done: { stretch: true, pullPush: true }, misses: [], plan: {} };
-      days['2026-10-20'] = { done: { stretch: !!(marks[today] || {}).stretch }, misses: [], plan: {} };
+      days['2026-10-19'] = { done: { stretch: true, pull: true, push: true, pullPush: true, ddx: true }, misses: [], plan: { pullPush: 'required', kettlebell: 'off' }, timed: { stretch: true, pull: false, push: false } };
+      days['2026-10-13'] = { done: { stretch: true, pull: true }, misses: ['push'], plan: { pullPush: 'required' }, timed: { stretch: false, pull: true, push: false } };
+      days['2026-10-15'] = { done: { stretch: true, kettlebell: true }, misses: [], plan: { pullPush: 'rest' }, timed: { stretch: true, pull: false, push: false } };
+      days['2026-10-20'] = { done: { stretch: !!(marks[today] || {}).stretch }, misses: [], plan: {}, timed: {} };
     }
     return { calendar: out, days: days };
   }

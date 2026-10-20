@@ -6,7 +6,7 @@
   var MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
   var LABELS = { stretch: 'Растяжка нерва', pull: 'Тяга резинки', push: 'Упор на пальцы', pullPush: 'Тяга + упор', kettlebell: 'Гиря', ddx: 'DDX', run: 'Бег', tennis: 'Теннис' };
 
-  var ui = { tab: 'today', day: 'today', month: null, busy: false, hint: null };
+  var ui = { tab: 'today', day: 'today', month: null, busy: false, hint: null, selDay: null };
   var colors = LfkSettings.normalize(null);
   var prefs = LfkSettings.normalizePrefs(null);
   var DEFAULT_REMINDERS = { stretchAt: 780, ddxAt: 1140, lfk: { from: 1200, to: 1380 }, kb: { from: 1200, to: 1380 }, run: { from: 1020, to: 1140 } };
@@ -27,6 +27,7 @@
     play: '<path d="M8 5.8v12.4a.8.8 0 0 0 1.2.7l9.8-6.2a.8.8 0 0 0 0-1.4L9.2 5.1A.8.8 0 0 0 8 5.8Z"/>',
     help: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.3-2.4 3.7M12 17h.01"/>',
     check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
     gear: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>',
   };
@@ -84,6 +85,7 @@
       if (s.error) throw new Error(s.error);
       var first = !state;
       state = s;
+      if (first) ui.selDay = s.today.date;
       ui.month = s.month;
       checkVersion(s);
       render();
@@ -192,14 +194,72 @@
     return n % 10 === 1 && n % 100 !== 11 ? 'день' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'дня' : 'дней';
   }
 
+  var WEEKDAYS = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+
+  function weekdayName(iso) {
+    return WEEKDAYS[new Date(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10))).getUTCDay()];
+  }
+
+  function statCell(label, dotCls, value, sub) {
+    return '<div class="stat"><span class="lbl">' + (dotCls === 'timer' ? icon('timer') : '<i class="dot ' + dotCls + '"></i>') + label + '</span>' +
+      '<b>' + value + '</b><small>' + esc(sub) + '</small></div>';
+  }
+
+  function renderBanner(p) {
+    var pct = Math.min(100, Math.round((p.daysDone / p.daysTotal) * 100));
+    var runVal = p.week.run >= 2 ? String(p.week.run) : p.week.run + '/1';
+    var runSub = p.week.run >= 2 ? 'отлично' : p.runWeeks > 1 ? p.runWeeks + ' нед. подряд' : 'на этой неделе';
+    return '<div class="banner">' +
+      '<div class="b-top"><div class="flame' + (p.streak ? '' : ' off') + '">' + icon('flame') + '</div>' +
+      '<div class="b-main"><div class="b-num">' + p.streak + '</div><div class="b-cap">' + dayWord(p.streak) + ' ЛФК без пропусков</div></div>' +
+      '<div class="b-best">рекорд<b>' + p.bestStreak + '</b></div></div>' +
+      '<div class="b-cheer">' + esc(cheer(p)) + '</div>' +
+      '<div class="b-stats">' +
+      statCell('Гиря', 'kb', p.week.kettlebell + '/3', p.kbWeeks > 1 ? p.kbWeeks + ' нед. подряд' : 'на этой неделе') +
+      statCell('Бег', 'run', runVal, runSub) +
+      statCell('Таймер', 'timer', p.timed && p.timed.total ? p.timed.timed + '/' + p.timed.total : '—', 'занятий ЛФК') +
+      '</div>' +
+      '<div class="b-finish"><div class="bar"><i style="width:' + pct + '%"></i></div>' +
+      '<div class="b-fl"><span>до финиша ' + p.daysLeft + ' дн.</span><span>' + p.daysDone + ' из ' + p.daysTotal + '</span></div></div></div>';
+  }
+
+  // Секция «Что было в этот день» под календарём.
+  var DETAIL_ITEMS = [
+    ['stretch', 'lfk'], ['pull', 'lfk'], ['push', 'lfk'], ['kettlebell', 'kb'], ['run', 'run'], ['ddx', 'ddx'], ['tennis', 'tennis'],
+  ];
+
+  function renderDayDetails(p) {
+    var iso = ui.selDay;
+    var cal = iso && state.calDays[iso];
+    if (!iso || !cal) return '<div class="details empty" id="details">Нажми на день в календаре — покажу, что в нём было.</div>';
+    var head = weekdayName(iso) + ', ' + humanDate(iso);
+    if (cal.future) return '<div class="details" id="details"><div class="d-head"><b>' + esc(head) + '</b><span class="d-tag future">впереди</span></div><div class="d-empty">Этот день ещё не наступил.</div></div>';
+
+    var d = state.days[iso] || { done: {}, misses: [], plan: {}, timed: {} };
+    var tag = cal.miss ? ['miss', 'есть пропуск'] : cal.p >= 1 ? ['ok', 'ЛФК выполнено'] : cal.p > 0 ? ['part', 'ЛФК частично'] : ['none', 'без ЛФК'];
+    var rows = '';
+    DETAIL_ITEMS.forEach(function (it) {
+      var key = it[0];
+      if (d.done[key]) {
+        rows += '<div class="d-row"><i class="dot ' + it[1] + '"></i><span>' + esc(LABELS[key]) + '</span>' +
+          (d.timed && d.timed[key] ? '<span class="d-mark" title="с таймером">' + icon('timer') + '</span>' : '<span class="d-mark">' + icon('check') + '</span>') + '</div>';
+      } else if (d.misses.indexOf(key) >= 0) {
+        rows += '<div class="d-row miss"><i class="dot red"></i><span>' + esc(LABELS[key]) + ' — пропущено</span><span class="d-mark">' + icon('close') + '</span></div>';
+      }
+    });
+    if (d.plan && d.plan.pullPush === 'rest' && !d.done.pull && !d.done.push) {
+      rows += '<div class="d-row rest"><i class="dot rest"></i><span>Тяга и упор — день отдыха</span></div>';
+    }
+    if (d.plan && d.plan.kettlebell === 'off' && !d.done.kettlebell) {
+      rows += '<div class="d-row rest"><i class="dot rest"></i><span>Гиря не нужна — день DDX</span></div>';
+    }
+    return '<div class="details" id="details"><div class="d-head"><b>' + esc(head) + '</b><span class="d-tag ' + tag[0] + '">' + tag[1] + '</span></div>' +
+      (rows || '<div class="d-empty">В этот день ничего не отмечено.</div>') + '</div>';
+  }
+
   function renderProgress() {
     var p = state.progress;
-    var html = '<div class="banner"><div class="big"><b>' + (p.streak ? '🔥 ' : '') + p.streak + '</b><span>' + dayWord(p.streak) + ' ЛФК без пропусков</span></div>' +
-      '<small>' + esc(cheer(p)) + '</small><div class="chips2">' +
-      '<span><i class="dot kb"></i>гиря ' + p.week.kettlebell + '/3' + (p.kbWeeks > 1 ? ' · ' + p.kbWeeks + ' нед.' : '') + '</span>' +
-      '<span><i class="dot run"></i>бег ' + (p.week.run >= 2 ? p.week.run + ' · отлично' : p.week.run + '/1' + (p.runWeeks > 1 ? ' · ' + p.runWeeks + ' нед.' : '')) + '</span>' +
-      (p.timed && p.timed.total ? '<span>' + icon('timer') + p.timed.timed + ' из ' + p.timed.total + '</span>' : '') +
-      '<span>' + p.daysLeft + ' дн. до финиша</span></div></div>';
+    var html = renderBanner(p);
 
     html += '<div class="badges">' + MILESTONES.map(function (m) {
       return '<span class="badge' + (p.bestStreak >= m[0] ? ' on' : '') + '">' + m[1] + '</span>';
@@ -215,12 +275,14 @@
         var nextIso = week[i + 1];
         var link = d.chain && nextIso && state.calDays[nextIso] && state.calDays[nextIso].chain;
         var cls = 'ring' + (d.fill && !d.miss ? ' full' : '') + (d.miss ? ' miss' : '') + (d.today ? ' today' : '') + (d.future ? ' future' : '');
-        html += '<button class="cell' + (link ? ' link' : '') + '" data-day="' + iso + '">' +
+        html += '<button class="cell' + (link ? ' link' : '') + (ui.selDay === iso ? ' sel' : '') + '" data-day="' + iso + '">' +
           '<span class="' + cls + '" style="--p:' + Math.round((d.p || 0) * 100) + '%">' + +iso.slice(8, 10) + '</span>' +
           '<span class="dots">' + (d.k ? '<b class="k"></b>' : '') + (d.r ? '<b class="r"></b>' : '') + (d.d ? '<b class="d"></b>' : '') + (d.t ? '<b class="t"></b>' : '') + '</span></button>';
       });
     });
     html += '</div><div class="legend"><span><i class="dot lfk"></i>ЛФК</span><span><i class="dot kb"></i>гиря</span><span><i class="dot run"></i>бег</span><span><i class="dot ddx"></i>DDX</span><span><i class="dot tennis"></i>теннис</span><span><i class="dot red"></i>пропуск</span></div>';
+
+    html += renderDayDetails(p);
 
     if (p.misses.length) {
       html += '<div class="misses"><b>Пропуски</b>' + p.misses.slice(-10).reverse().map(function (m) {
@@ -324,15 +386,6 @@
     render();
   }
 
-  function dayDetails(iso) {
-    var d = state.days[iso];
-    if (!d) return popup(humanDate(iso), 'Нет данных за этот день.');
-    var done = Object.keys(d.done).filter(function (k) { return d.done[k] && k !== 'pullPush'; }).map(function (k) { return LABELS[k]; });
-    var text = 'Сделано: ' + (done.length ? done.join(', ') : '—');
-    if (d.misses.length) text += '\nПропущено: ' + d.misses.map(function (k) { return LABELS[k]; }).join(', ');
-    popup(humanDate(iso), text);
-  }
-
   function render() {
     root.innerHTML =
       '<div class="topbar"><div class="tabs"><button data-tab="today" class="' + (ui.tab === 'today' ? 'on' : '') + '">Сегодня</button>' +
@@ -376,15 +429,20 @@
       b.onclick = function () { ui.hint = ui.hint === b.dataset.hint ? null : b.dataset.hint; render(); };
     });
     root.querySelectorAll('.cal [data-day]').forEach(function (b) {
-      b.onclick = function () { dayDetails(b.dataset.day); };
+      b.onclick = function () {
+        ui.selDay = b.dataset.day;
+        render();
+        var det = document.getElementById('details');
+        if (det && det.scrollIntoView) det.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      };
     });
     root.querySelectorAll('.seg [data-day]').forEach(function (b) {
       b.onclick = function () { ui.day = b.dataset.day; ui.hint = null; render(); };
     });
     var prev = document.getElementById('prev');
     var next = document.getElementById('next');
-    if (prev) prev.onclick = function () { ui.month = LfkCalendar.shiftMonth(ui.month, -1); load(); };
-    if (next) next.onclick = function () { ui.month = LfkCalendar.shiftMonth(ui.month, 1); load(); };
+    if (prev) prev.onclick = function () { ui.month = LfkCalendar.shiftMonth(ui.month, -1); ui.selDay = null; load(); };
+    if (next) next.onclick = function () { ui.month = LfkCalendar.shiftMonth(ui.month, 1); ui.selDay = null; load(); };
     renderOverlay();
   }
 
