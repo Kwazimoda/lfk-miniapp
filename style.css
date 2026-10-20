@@ -1,0 +1,61 @@
+:root {
+  --bg: var(--tg-theme-bg-color, #ffffff);
+  --bg2: var(--tg-theme-secondary-bg-color, #f1f2f6);
+  --text: var(--tg-theme-text-color, #111111);
+  --hint: var(--tg-theme-hint-color, #8a8f98);
+  --accent: var(--tg-theme-button-color, #2aabee);
+  --accent-text: var(--tg-theme-button-text-color, #ffffff);
+  --card: var(--tg-theme-section-bg-color, #ffffff);
+  --green: #43a047;
+  --green-soft: #a5d6a7;
+  --red: #e53935;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.tg) {
+    --bg: #17212b; --bg2: #0e1621; --text: #f5f5f5; --hint: #7d8b99; --card: #17212b;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg2); color: var(--text); font: 15px/1.35 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+#app { max-width: 520px; margin: 0 auto; padding: 12px 14px 32px; }
+.loading, .error { text-align: center; color: var(--hint); padding: 48px 16px; }
+.error button { margin-top: 12px; }
+h1 { font-size: 17px; text-align: center; margin: 4px 0 12px; font-weight: 600; }
+
+.tabs { display: flex; background: color-mix(in srgb, var(--hint) 18%, transparent); border-radius: 10px; padding: 3px; margin-bottom: 14px; }
+.tabs button { flex: 1; border: 0; background: none; color: var(--text); padding: 7px; border-radius: 8px; font: inherit; font-size: 14px; }
+.tabs button.on { background: var(--card); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+
+.grp { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--hint); margin: 14px 4px 6px; }
+.ex { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; background: var(--card); color: var(--text); border-radius: 12px; padding: 12px; margin-bottom: 8px; font: inherit; }
+.ex .chk { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--accent-text); transition: background .15s; }
+.ex.done .chk { background: var(--accent); }
+.ex.rest, .ex.off { opacity: .55; }
+.ex small { display: block; color: var(--hint); font-size: 12px; margin-top: 2px; }
+.btn { display: block; width: 100%; border: 0; background: var(--accent); color: var(--accent-text); border-radius: 10px; padding: 12px; font: inherit; font-weight: 600; margin-top: 14px; }
+.btn.ghost { background: none; color: var(--accent); }
+
+.tiles { display: flex; gap: 8px; }
+.tile { flex: 1; background: var(--card); border-radius: 12px; padding: 10px 6px; text-align: center; font-size: 12px; color: var(--hint); }
+.tile b { display: block; font-size: 22px; color: var(--text); }
+.bar { height: 8px; background: color-mix(in srgb, var(--hint) 25%, transparent); border-radius: 4px; overflow: hidden; margin: 14px 0 4px; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.hint { font-size: 12px; color: var(--hint); }
+
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 8px; }
+.cal-head button { border: 0; background: none; color: var(--accent); font-size: 22px; padding: 0 12px; }
+.cal-head span { font-weight: 600; }
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.cal div, .cal button { aspect-ratio: 1; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; border: 0; font: inherit; }
+.cal .wd { color: var(--hint); font-size: 11px; aspect-ratio: auto; padding-bottom: 2px; }
+.cal button { background: var(--card); color: var(--text); }
+.cal .green { background: var(--green); color: #fff; }
+.cal .lightgreen { background: var(--green-soft); color: #1b3a1d; }
+.cal .red { background: var(--red); color: #fff; }
+.cal .today { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cal .none { color: var(--hint); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 10px; font-size: 12px; color: var(--hint); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+.misses { margin-top: 16px; background: var(--card); border-radius: 12px; padding: 10px 12px; font-size: 13px; }
+.misses div { padding: 3px 0; }
+.ver { text-align: center; color: var(--hint); font-size: 11px; margin-top: 24px; }
