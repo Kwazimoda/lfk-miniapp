@@ -41,6 +41,23 @@
     return { calendar: out, days: days };
   }
 
+  function calDays(month) {
+    var out = {};
+    for (var d = 1; d <= 31; d++) {
+      var iso = month + '-' + (d < 10 ? '0' : '') + d;
+      var o = { p: 0, fill: false, miss: false, today: false, future: false, k: false, s: false, chain: false };
+      if (month === '2026-10') {
+        if (d > 20) { o.future = true; }
+        else if (d === 20) { o.today = true; o.p = 0.33; }
+        else if (d >= 14) { o.p = 1; o.fill = d % 2 === 0; o.chain = true; o.k = d % 3 === 0; o.s = d % 4 === 0; }
+        else if (d === 13) { o.p = 0.66; o.miss = true; }
+        else if (d >= 11) { o.p = 0.5; o.k = d === 12; }
+      }
+      out[iso] = o;
+    }
+    return out;
+  }
+
   function state(month) {
     var m = month || today.slice(0, 7);
     var cal = calendar(m);
@@ -48,7 +65,8 @@
       version: (window.LFK_CONFIG || {}).version || 'dev',
       today: view(today, 1), yesterday: view('2026-10-19', 0),
       pullPhase: { phase: 'static', done: 3, staticSessions: 6 },
-      progress: { timed: { timed: 1, total: 4 }, streak: 1, totalMisses: 0, misses: [], daysLeft: 83, daysDone: 9, daysTotal: 92, week: { pullPush: 1, kettlebell: 1 }, kettlebellShortWeeks: [] },
+      calDays: calDays(m),
+      progress: { bestStreak: 6, kbWeeks: 2, streakStart: '2026-10-15', timed: { timed: 4, total: 5 }, streak: 6, totalMisses: 0, misses: [], daysLeft: 83, daysDone: 9, daysTotal: 92, week: { pullPush: 1, kettlebell: 1 }, kettlebellShortWeeks: [] },
       month: m, calendar: cal.calendar, days: cal.days,
     };
   }

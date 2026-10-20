@@ -7,6 +7,7 @@
   var LABELS = { stretch: 'Растяжка нерва', pull: 'Тяга резинки', push: 'Упор на пальцы', pullPush: 'Тяга + упор', kettlebell: 'Гиря', ddx: 'DDX', run: 'Пробежка', tennis: 'Теннис' };
 
   var ui = { tab: 'today', day: 'today', month: null, busy: false, hint: null };
+  var colors = LfkSettings.normalize(null);
   var SESSION_KEY = 'lfk-session';
   var session = null; // текущий таймер подходов (LfkSession), показывается поверх списка
   var overlayOpen = false;
@@ -21,6 +22,7 @@
     play: '<path d="M8 5.8v12.4a.8.8 0 0 0 1.2.7l9.8-6.2a.8.8 0 0 0 0-1.4L9.2 5.1A.8.8 0 0 0 8 5.8Z"/>',
     help: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.3-2.4 3.7M12 17h.01"/>',
     check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M2.8 12h2.4M18.8 12h2.4M4.9 19.1l1.7-1.7M17.4 6.6l1.7-1.7"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>',
   };
 
@@ -165,34 +167,66 @@
       '<p class="muted">' + esc(LfkHints.COURSE_NOTE) + '</p></div>';
   }
 
+  var MILESTONES = [[3, '3 дня'], [7, 'неделя'], [14, '2 недели'], [30, 'месяц'], [50, '50 дней'], [92, 'финиш']];
+
+  function cheer(p) {
+    if (!p.streak) return 'Начнём серию сегодня — одно занятие, и день засчитан.';
+    var next = MILESTONES.filter(function (m) { return m[0] > p.streak; })[0];
+    if (!next) return 'Весь курс пройден без пропусков — это мощно!';
+    var left = next[0] - p.streak;
+    return 'Отлично держишь ритм! Ещё ' + left + ' ' + (left === 1 ? 'день' : left < 5 ? 'дня' : 'дней') + ' до «' + next[1] + '».';
+  }
+
+  function dayWord(n) {
+    return n % 10 === 1 && n % 100 !== 11 ? 'день' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'дня' : 'дней';
+  }
+
   function renderProgress() {
     var p = state.progress;
-    var pct = Math.min(100, Math.round((p.daysDone / p.daysTotal) * 100));
-    var html = '<div class="tiles">' +
-      '<div class="tile"><b>' + p.streak + '</b>дней без пропусков</div>' +
-      '<div class="tile"><b>' + p.totalMisses + '</b>пропусков всего</div>' +
-      '<div class="tile"><b>' + p.daysLeft + '</b>дней до финиша</div></div>' +
-      '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
-      '<div class="hint">' + p.daysDone + ' из ' + p.daysTotal + ' дней · финиш 11 января · неделя: тяга + упор ' + p.week.pullPush + '/3, гиря ' + p.week.kettlebell + '/3</div>' +
-      (p.timed ? '<div class="hint with-ic">' + icon('timer') + ' с таймером: ' + p.timed.timed + ' из ' + p.timed.total + ' занятий ЛФК</div>' : '');
+    var html = '<div class="banner"><div class="big"><b>' + (p.streak ? '🔥 ' : '') + p.streak + '</b><span>' + dayWord(p.streak) + ' ЛФК без пропусков</span></div>' +
+      '<small>' + esc(cheer(p)) + '</small><div class="chips2">' +
+      '<span><i class="dot kb"></i>гиря ' + p.week.kettlebell + '/3' + (p.kbWeeks > 1 ? ' · ' + p.kbWeeks + ' нед. подряд' : '') + '</span>' +
+      (p.timed && p.timed.total ? '<span>' + icon('timer') + p.timed.timed + ' из ' + p.timed.total + ' с таймером</span>' : '') +
+      '<span>до финиша ' + p.daysLeft + ' дн.</span></div></div>';
+
+    html += '<div class="badges">' + MILESTONES.map(function (m) {
+      return '<span class="badge' + (p.bestStreak >= m[0] ? ' on' : '') + '">' + (p.bestStreak >= m[0] ? icon('check') : '') + m[1] + '</span>';
+    }).join('') + '</div>';
 
     var ym = ui.month;
     html += '<div class="cal-head"><button id="prev" aria-label="Предыдущий месяц">‹</button><span>' + MONTHS[+ym.slice(5, 7) - 1] + ' ' + ym.slice(0, 4) + '</span><button id="next" aria-label="Следующий месяц">›</button></div>';
     html += '<div class="cal">' + ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(function (d) { return '<div class="wd">' + d + '</div>'; }).join('');
     LfkCalendar.monthGrid(+ym.slice(0, 4), +ym.slice(5, 7)).forEach(function (week) {
-      week.forEach(function (iso) {
-        if (!iso) { html += '<div></div>'; return; }
-        var color = state.calendar[iso] || 'none';
-        html += '<button class="' + color + '" data-day="' + iso + '">' + +iso.slice(8, 10) + '</button>';
+      week.forEach(function (iso, i) {
+        if (!iso) { html += '<div class="cell"></div>'; return; }
+        var d = state.calDays[iso] || {};
+        var nextIso = week[i + 1];
+        var link = d.chain && nextIso && state.calDays[nextIso] && state.calDays[nextIso].chain;
+        var cls = 'ring' + (d.fill && !d.miss ? ' full' : '') + (d.miss ? ' miss' : '') + (d.today ? ' today' : '') + (d.future ? ' future' : '');
+        html += '<button class="cell' + (link ? ' link' : '') + '" data-day="' + iso + '">' +
+          '<span class="' + cls + '" style="--p:' + Math.round((d.p || 0) * 100) + '%">' + +iso.slice(8, 10) + '</span>' +
+          '<span class="dots">' + (d.k ? '<b class="k"></b>' : '') + (d.s ? '<b class="s"></b>' : '') + '</span></button>';
       });
     });
-    html += '</div><div class="legend"><span><i style="background:var(--green)"></i>всё сделано</span><span><i style="background:var(--green-soft)"></i>без пропусков</span><span><i style="background:var(--red)"></i>пропуск</span></div>';
+    html += '</div><div class="legend"><span><i class="dot lfk"></i>кольцо — ЛФК за день</span><span><i class="dot kb"></i>гиря</span><span><i class="dot sport"></i>спорт</span><span><i class="dot red"></i>пропуск</span></div>';
 
     if (p.misses.length) {
       html += '<div class="misses"><b>Пропуски</b>' + p.misses.slice(-10).reverse().map(function (m) {
         return '<div>' + humanDate(m.date) + ' — ' + m.items.map(function (i) { return LABELS[i]; }).join(', ') + '</div>';
       }).join('') + '</div>';
     }
+    return html;
+  }
+
+  function renderSettings() {
+    var rows = [['lfk', 'ЛФК'], ['kb', 'Комплекс с гирей'], ['sport', 'Другой спорт']];
+    var html = '<div class="head"><h1>Настройки</h1></div><div class="grp">Цвета на экране «Прогресс»</div>';
+    rows.forEach(function (r) {
+      html += '<div class="set-row"><span>' + r[1] + '</span><span class="swatches">' + LfkSettings.PALETTE.map(function (c) {
+        return '<button class="sw' + (colors[r[0]] === c ? ' on' : '') + '" style="background:' + c + '" data-color="' + c + '" data-key="' + r[0] + '" aria-label="' + c + '"></button>';
+      }).join('') + '</span></div>';
+    });
+    html += '<button class="btn ghost" id="reset-colors">Сбросить цвета</button>';
     return html;
   }
 
@@ -207,9 +241,10 @@
 
   function render() {
     root.innerHTML =
-      '<div class="tabs"><button data-tab="today" class="' + (ui.tab === 'today' ? 'on' : '') + '">Сегодня</button>' +
+      '<div class="topbar"><div class="tabs"><button data-tab="today" class="' + (ui.tab === 'today' ? 'on' : '') + '">Сегодня</button>' +
       '<button data-tab="progress" class="' + (ui.tab === 'progress' ? 'on' : '') + '">Прогресс</button></div>' +
-      (ui.tab === 'today' ? renderToday() : renderProgress()) +
+      '<button class="gear' + (ui.tab === 'settings' ? ' on' : '') + '" data-tab="settings" aria-label="Настройки">' + icon('gear') + '</button></div>' +
+      (ui.tab === 'today' ? renderToday() : ui.tab === 'progress' ? renderProgress() : renderSettings()) +
       '<div class="ver">Версия ' + esc(state.version) + '</div>';
 
     root.querySelectorAll('[data-tab]').forEach(function (b) {
@@ -218,6 +253,16 @@
     root.querySelectorAll('[data-item]').forEach(function (b) {
       b.onclick = function () { mark(b.dataset.item, b.dataset.done !== '1'); };
     });
+    root.querySelectorAll('[data-color]').forEach(function (b) {
+      b.onclick = function () {
+        colors[b.dataset.key] = b.dataset.color;
+        LfkSettings.save(colors);
+        LfkSettings.apply(colors);
+        render();
+      };
+    });
+    var rc = document.getElementById('reset-colors');
+    if (rc) rc.onclick = function () { colors = LfkSettings.normalize(null); LfkSettings.save(colors); LfkSettings.apply(colors); render(); };
     root.querySelectorAll('[data-start]').forEach(function (b) {
       b.onclick = function () { openSession(b.dataset.start); };
     });
@@ -466,6 +511,10 @@
   if (!window.LFK_MOCK && !(tg && tg.initData)) {
     showError({ message: 'forbidden' });
   } else {
-    load();
+    LfkSettings.load(function (c) {
+      colors = c;
+      LfkSettings.apply(colors);
+      load();
+    });
   }
 })();
