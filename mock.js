@@ -106,6 +106,18 @@
         mockPlans = mockPlans.filter(function (p) { return p.id !== body.id; });
         return { ok: true };
       }
+      if (body.action === 'snapshot') {
+        var K = ['stretch', 'pull', 'push', 'kettlebell', 'ddx', 'run', 'tennis'];
+        var day = function (list) { var o = {}; K.forEach(function (k) { o[k] = list.indexOf(k) >= 0; }); return o; };
+        return { snapshot: {
+          launchDate: '2026-10-20',
+          history: {
+            '2026-10-11': day(['pull', 'push']), '2026-10-13': day(['pull', 'push', 'kettlebell']), '2026-10-15': day(['pull', 'push', 'kettlebell']),
+            '2026-10-19': day(['ddx']), '2026-10-20': day(['stretch', 'pull', 'push']), '2026-10-21': day(['stretch']),
+          },
+          settings: mockSettings, plans: [],
+        } };
+      }
       if (body.action === 'pain') {
         (marks[body.date] = marks[body.date] || {}).pain = body.value;
         return { ok: true };

@@ -205,8 +205,12 @@
   }
 
   // Если приложение пролежало в фоне до следующего дня — перечитываем данные, иначе отметки уйдут не в тот день.
+  function nowMs() {
+    return window.LfkTest ? LfkTest.nowMs() : Date.now();
+  }
+
   function refreshIfNewDay() {
-    if (state && !pendingMarks && LfkCalendar.todayMsk(Date.now()) !== state.today.date) {
+    if (state && !pendingMarks && LfkCalendar.todayMsk(nowMs()) !== state.today.date) {
       ui.day = 'today';
       ui.selDay = null;
       ui.month = null;
@@ -221,6 +225,51 @@
       var kind = t === 'отдых' || /хорошо|отлично/.test(t) ? ' rest' : /^этап/.test(t) ? ' phase' : '';
       return '<i class="tag' + kind + '">' + esc(t) + '</i>';
     }).join('');
+  }
+
+  // --- режим тестирования
+
+  function renderTestBar() {
+    var off = LfkTest.dayOffset();
+    var d = state && state.today ? humanDate(state.today.date) : '';
+    return '<div class="testbar" role="status"><div class="tb-l"><b>ТЕСТ</b><small>не сохраняется' + (off ? ' · ' + (off > 0 ? '+' : '') + off + ' дн.' : '') + '</small></div>' +
+      '<button data-test="back" aria-label="Предыдущий день">‹</button><span class="tb-d">' + esc(d) + '</span><button data-test="fwd" aria-label="Следующий день">›</button>' +
+      '<button class="tb-t" data-test="reset">Сброс</button><button class="tb-t exit" data-test="exit">Выйти</button></div>';
+  }
+
+  function enterTest() {
+    ui.sheet = null;
+    session = null; flow = null; overlayOpen = false;
+    root.innerHTML = skeletonHtml();
+    LfkTest.enter(function () {
+      return apiCallReal({ action: 'snapshot' }).then(function (r) {
+        if (!r || !r.snapshot) throw new Error((r && r.error) || 'нет данных');
+        return r.snapshot;
+      });
+    }, window.LFK_CONFIG.version).then(function () {
+      ui.tab = 'today'; ui.day = 'today'; ui.month = null; ui.selDay = null; state = null;
+      return load();
+    }).then(function () { toast('Тестовый режим: меняется только копия данных'); })
+      .catch(function (e) { LfkTest.exit(); popup('Тестовый режим', 'Не удалось начать тест: ' + e.message); state = null; load(); });
+  }
+
+  function exitTest() {
+    LfkTest.exit();
+    session = null; flow = null; overlayOpen = false; report = null; renderReport();
+    ui.month = null; ui.selDay = null; ui.sheet = null; ui.day = 'today';
+    state = null;
+    root.innerHTML = skeletonHtml();
+    load().then(function () { toast('Вышел из теста — снова настоящие данные'); });
+  }
+
+  function testAction(act) {
+    if (act === 'exit') return exitTest();
+    if (act === 'reset') LfkTest.reset();
+    if (act === 'fwd') LfkTest.shiftDays(1);
+    if (act === 'back') LfkTest.shiftDays(-1);
+    ui.month = null; ui.selDay = null; ui.day = 'today';
+    state = state; // перечитываем состояние из песочницы
+    load().then(function () { ui.selDay = state.today.date; render(); });
   }
 
   // --- планы на спорт
@@ -250,7 +299,7 @@
 
   // Московское время «сейчас» в минутах от полуночи (сервер ждёт именно его).
   function mskMinutes() {
-    var n = new Date(Date.now() + 3 * 3600000);
+    var n = new Date(nowMs() + 3 * 3600000);
     return n.getUTCHours() * 60 + n.getUTCMinutes();
   }
 
@@ -605,7 +654,9 @@
       liLink('ddxAt', 'DDX: записаться', fmtMin(st.ddxAt), 'по воскресеньям') + '</div>' +
       '<div class="grp">Внешний вид</div><div class="group">' +
       liLink('theme', 'Тема', THEME_NAMES[prefs.theme]) +
-      liLink('colors', 'Цвета активностей', '<span class="sw-row">' + swatches + '</span>') + '</div>';
+      liLink('colors', 'Цвета активностей', '<span class="sw-row">' + swatches + '</span>') + '</div>' +
+      '<div class="grp">Проверка</div><div class="group">' +
+      liLink('testmode', 'Режим тестирования', LfkTest.active ? 'включён' : '', 'жми что угодно — данные не сохранятся') + '</div>';
   }
 
   // Содержимое листа: [заголовок, html].
@@ -625,6 +676,11 @@
       case 'stretchAt': return ['Растяжка днём', '<div class="range big">' + timeInput('stretchAt', st.stretchAt) + '</div><p class="sheet-note">Одно напоминание, если растяжка ещё не сделана.</p>'];
       case 'ddxAt': return ['DDX: записаться', '<div class="range big">' + timeInput('ddxAt', st.ddxAt) + '</div><p class="sheet-note">Каждое воскресенье — записаться на занятие в понедельник.</p>'];
       case 'theme': return ['Тема', segHtml('theme', [{ v: 'auto', t: 'Как в Telegram' }, { v: 'light', t: 'Светлая' }, { v: 'dark', t: 'Тёмная' }], prefs.theme)];
+      case 'testmode': return ['Режим тестирования',
+        '<p class="sheet-note first">Откроется <b>копия твоих данных</b> прямо на телефоне. Нажимай любые кнопки: отметки, таймеры, боль, планы, настройки, отчёт — ничего не сохранится в таблице, бот ничего не пришлёт.</p>' +
+        '<ul class="test-list"><li>Вверху — жёлтая полоса, чтобы не перепутать.</li><li>Кнопками «‹ ›» можно перематывать дни и смотреть серии и пропуски.</li><li>«Выйти» или закрытие приложения — копия исчезает, всё как прежде.</li></ul>' +
+        '<p class="sheet-note">Сообщения самого бота (напоминания, «Через 30 мин») в тесте не проверяются.</p>' +
+        '<button class="btn" id="enter-test">Начать тест</button>'];
       case 'colors': return ['Цвета активностей', COLOR_ROWS.map(function (r) {
         return '<div class="color-row"><span>' + r[1] + '</span><span class="swatches">' + LfkSettings.PALETTE.map(function (c) {
           return '<button class="sw' + (colors[r[0]] === c ? ' on' : '') + '" style="background:' + c + '" data-color="' + c + '" data-key="' + r[0] + '" aria-label="' + esc(r[1] + ': ' + c) + '"></button>';
@@ -702,8 +758,9 @@
 
   function render() {
     var tabs = [['today', 'Сегодня', 'today'], ['progress', 'Прогресс', 'chart'], ['settings', 'Настройки', 'gear']];
+    var testBar = LfkTest.active ? renderTestBar() : '';
     root.innerHTML =
-      (ui.tab === 'today' ? renderToday() : ui.tab === 'progress' ? renderProgress() : renderSettings()) +
+      testBar + (ui.tab === 'today' ? renderToday() : ui.tab === 'progress' ? renderProgress() : renderSettings()) +
       (ui.tab === 'settings' ? '<div class="ver">Версия ' + esc(state.version) + '</div>' : '') +
       '<nav class="tabbar" role="tablist">' + tabs.map(function (t) {
         return '<button role="tab" aria-selected="' + (ui.tab === t[0]) + '" data-tab="' + t[0] + '" class="' + (ui.tab === t[0] ? 'on' : '') + '">' + icon(t[2]) + '<span>' + t[1] + '</span></button>';
@@ -749,6 +806,11 @@
         var det = document.getElementById('details');
         if (det && det.scrollIntoView) det.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
       };
+    });
+    var et = document.getElementById('enter-test');
+    if (et) et.onclick = enterTest;
+    root.querySelectorAll('[data-test]').forEach(function (b) {
+      b.onclick = function () { testAction(b.dataset.test); };
     });
     var sf = document.getElementById('start-flow');
     if (sf) sf.onclick = startFlow;
@@ -814,6 +876,7 @@
   // --- таймер подходов
 
   function saveSession() {
+    if (window.LfkTest && LfkTest.active) return; // в тесте незавершённый таймер не сохраняем
     try {
       if (session && session.phase !== 'done') localStorage.setItem(SESSION_KEY, JSON.stringify(session));
       else localStorage.removeItem(SESSION_KEY);
