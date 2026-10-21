@@ -22,6 +22,12 @@
   }
 }
 * { box-sizing: border-box; }
+/* Быстрые нажатия подряд («‹ ›» в тесте, отметки) не должны увеличивать страницу двойным касанием iOS.
+   manipulation отключает именно двойной тап, оставляя щипок двумя пальцами. */
+html, body, button, input, label, [role="tab"] { touch-action: manipulation; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overflow-x: hidden; }
+body { max-width: 100vw; overflow-x: hidden; overscroll-behavior-x: none; }
+button, .tabbar, .testbar, .seg, .cal .cell, .c-cell, .sw, .li { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 html, body { margin: 0; background: var(--bg2); color: var(--text); font: 17px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
 button { font: inherit; color: inherit; cursor: pointer; }
 /* В полноэкранном режиме Telegram задаёт отступы под системную панель и свои кнопки. */
