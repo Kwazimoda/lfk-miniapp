@@ -1,4 +1,4 @@
-// Мини-приложение: вкладки «Сегодня» и «Прогресс». Все статусы и цвета считает Apps Script.
+// Мини-приложение: вкладки «Сегодня», «Прогресс», «Настройки» (панель снизу). Все статусы и цвета считает Apps Script.
 (function () {
   var tg = window.Telegram && Telegram.WebApp;
   var root = document.getElementById('app');
@@ -6,7 +6,10 @@
   var MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
   var LABELS = { stretch: 'Растяжка нерва', pull: 'Тяга резинки', push: 'Упор на пальцы', pullPush: 'Тяга + упор', kettlebell: 'Гиря', ddx: 'DDX', run: 'Бег', tennis: 'Теннис' };
 
-  var ui = { tab: 'today', day: 'today', month: null, busy: false, hint: null, selDay: null };
+  var ui = { tab: 'today', day: 'today', month: null, hint: null, selDay: null, calView: 'month', sheet: null, showRest: false, popItem: null, painVal: 2 };
+  var flow = null; // «Начать ЛФК»: { queue: [item], idx, stage: 'between' | 'session' | 'pain' | 'done', solo }
+  var report = null; // данные отчёта для врача, когда он открыт
+  var wasAllDone = null;
   var colors = LfkSettings.normalize(null);
   var prefs = LfkSettings.normalizePrefs(null);
   var DEFAULT_REMINDERS = { stretchAt: 780, ddxAt: 1140, lfk: { from: 1200, to: 1380 }, kb: { from: 1200, to: 1380 }, run: { from: 1020, to: 1140 } };
@@ -30,6 +33,11 @@
     flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
     gear: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>',
+    today: '<rect x="3.5" y="4.5" width="17" height="16" rx="3"/><path d="M8 2.5v4M16 2.5v4M8.5 13l2.5 2.5 4.5-5"/>',
+    chart: '<path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/>',
+    chevron: '<path d="m9 6 6 6-6 6"/>',
+    send: '<path d="M21 3 10 14M21 3l-7 18-4-7-7-4 18-7z"/>',
+    doc: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/>',
   };
 
   function icon(name, cls) {
@@ -98,7 +106,34 @@
     root.innerHTML = '<div class="error">' +
       (forbidden ? 'Открой приложение из бота в Telegram.' : 'Не получилось загрузить данные.<br><small>' + esc(err && err.message || '') + '</small>') +
       '<button class="btn" id="retry">Повторить</button></div>';
-    document.getElementById('retry').onclick = function () { root.innerHTML = '<div class="loading">Загружаю…</div>'; load(); };
+    document.getElementById('retry').onclick = function () { root.innerHTML = skeletonHtml(); load(); };
+  }
+
+  function skeletonHtml() {
+    return '<div class="skel"><i class="s-h1"></i><i class="s-sub"></i><i class="s-card"></i><i class="s-row"></i><i class="s-row"></i><i class="s-row"></i><i class="s-row short"></i></div>';
+  }
+
+  function reducedMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
+  // Праздник, когда всё ЛФК за день закрыто: вибрация и лёгкое конфетти (без него при «уменьшить движение»).
+  function celebrate() {
+    buzz('success');
+    if (reducedMotion()) return;
+    var box = document.createElement('div');
+    box.className = 'confetti';
+    var palette = [colors.lfk, colors.kb, colors.run, colors.ddx, colors.tennis];
+    for (var i = 0; i < 28; i++) {
+      var p = document.createElement('i');
+      p.style.left = Math.round(Math.random() * 100) + '%';
+      p.style.background = palette[i % palette.length];
+      p.style.animationDelay = Math.round(Math.random() * 250) + 'ms';
+      p.style.transform = 'rotate(' + Math.round(Math.random() * 360) + 'deg)';
+      box.appendChild(p);
+    }
+    document.body.appendChild(box);
+    setTimeout(function () { box.remove(); }, 1800);
   }
 
   // Отметки идут в очередь: быстрые нажатия подряд не теряются, а сервер получает их по порядку.
@@ -109,6 +144,7 @@
     var dayKey = ui.day;
     var date = state[dayKey].date;
     haptic();
+    ui.popItem = value ? item : null;
     // Оптимистично показываем галочку сразу.
     state[dayKey].list.forEach(function (x) { if (x.item === item) { x.done = value; if (!value) x.timed = false; } });
     render();
@@ -158,7 +194,7 @@
     var dose = x.item === 'stretch' ? '10 × 5 с, отдых ' + prefs.stretchRestSec + ' с' : x.dose;
     var running = session && session.item === x.item && session.phase !== 'done';
     var slim = !dose; // без дозировки — название и метка в одной строке
-    var html = '<div class="row ' + (x.done ? 'done ' : '') + (slim ? 'slim ' : '') + esc(x.status) + '">' +
+    var html = '<div class="row ' + (x.done ? 'done ' : '') + (slim ? 'slim ' : '') + (ui.popItem === x.item && x.done ? 'pop ' : '') + esc(x.status) + '">' +
       '<button class="ex" data-item="' + esc(x.item) + '" data-done="' + (x.done ? 1 : 0) + '" aria-pressed="' + !!x.done + '" aria-label="' +
         esc(x.label + ': ' + (x.done ? (x.timed ? 'сделано с таймером' : 'сделано') : 'не сделано') + (dose ? ', ' + dose : '') + (x.tags && x.tags.length ? ', ' + x.tags.join(', ') : '')) + '">' +
       '<span class="chk">' + (x.done ? icon(x.timed ? 'timer' : 'check') : '') + '</span>' +
@@ -174,19 +210,57 @@
     return html;
   }
 
+  // Карточка «Сейчас: ЛФК» — одна кнопка проводит по всем несделанным упражнениям подряд.
+  function renderHero(v) {
+    if (ui.day !== 'today') return '';
+    if (session && session.phase !== 'done' && !overlayOpen) {
+      return '<div class="hero"><div class="h-txt"><span class="h-kicker">Не закончено</span><b>' + esc(LABELS[session.item]) + '</b>' +
+        '<small>сделано ' + session.completed + ' из ' + session.plan.sets + '</small></div>' +
+        '<button class="btn hero-btn" id="resume-flow">' + icon('play', 'fill') + 'Продолжить</button></div>';
+    }
+    var queue = LfkSession.flowQueue(v.list);
+    if (!queue.length) return '';
+    var sec = queue.reduce(function (n, it) { return n + LfkSession.estimateSec(LfkSession.planFor(it, state.pullPhase, prefs)); }, 0);
+    var mins = Math.max(1, Math.round(sec / 60 + queue.length * 0.5)); // плюс переходы между упражнениями
+    return '<div class="hero"><div class="h-txt"><span class="h-kicker">Сейчас</span><b>ЛФК · ~' + mins + ' мин</b>' +
+      '<small>' + esc(queue.map(function (it) { return LABELS[it]; }).join(' · ')) + '</small></div>' +
+      '<button class="btn hero-btn" id="start-flow">' + icon('play', 'fill') + 'Начать</button></div>';
+  }
+
   function renderToday() {
     var v = state[ui.day];
     var lfk = v.list.filter(function (x) { return x.group === 'lfk'; });
     var due = lfk.filter(function (x) { return x.status === 'required' || x.done; });
     var doneN = due.filter(function (x) { return x.done; }).length;
+    var allDone = doneN === due.length && due.length > 0;
     var html = '<div class="head"><h1>' + esc(v.weekdayName) + ', ' + humanDate(v.date) + '</h1><div class="head-row">' +
-      '<div class="sum">ЛФК: ' + doneN + ' из ' + due.length + (doneN === due.length && due.length ? ' — всё сделано 🎉' : '') + '</div>' +
+      '<div class="sum">ЛФК: <b class="num">' + doneN + '</b> из <b class="num">' + due.length + '</b>' + (allDone ? ' — всё сделано 🎉' : '') + '</div>' +
       '<div class="seg"><button data-day="today" class="' + (ui.day === 'today' ? 'on' : '') + '">Сегодня</button>' +
-      '<button data-day="yesterday" class="' + (ui.day === 'yesterday' ? 'on' : '') + '">Вчера</button></div></div>';
+      '<button data-day="yesterday" class="' + (ui.day === 'yesterday' ? 'on' : '') + '">Вчера</button></div></div></div>';
 
-    html += '<div class="grp">ЛФК</div>' + lfk.map(renderRow).join('');
+    html += renderHero(v);
+
+    // День отдыха от тяги и упора — одной строкой; по нажатию раскрывается, если всё же хочется отметить.
+    var pull = lfk.filter(function (x) { return x.item === 'pull'; })[0];
+    var push = lfk.filter(function (x) { return x.item === 'push'; })[0];
+    var restDay = pull && push && pull.status === 'rest' && push.status === 'rest' && !pull.done && !push.done;
+    html += '<div class="grp">ЛФК</div>' + lfk.map(function (x) {
+      if (restDay && !ui.showRest && (x.item === 'pull' || x.item === 'push')) {
+        return x.item === 'pull'
+          ? '<button class="row slim rest-row" id="show-rest" aria-label="Тяга и упор — день отдыха. Показать упражнения">' +
+            '<span class="chk rest-ic">' + icon('check') + '</span><span class="txt inline"><span class="name">Тяга и упор — отдых</span>' +
+            '<span class="tags"><i class="tag rest">следующее занятие завтра</i></span></span></button>'
+          : '';
+      }
+      return renderRow(x);
+    }).join('');
     html += '<div class="grp">Спорт</div>' + v.list.filter(function (x) { return x.group === 'sport'; }).map(renderRow).join('');
     if (ui.day === 'yesterday') html += '<div class="note-small">За вчера — только ручные отметки, без таймера.</div>';
+
+    if (ui.day === 'today') {
+      if (wasAllDone === false && allDone) setTimeout(celebrate, 120);
+      wasAllDone = allDone;
+    }
     return html;
   }
 
@@ -247,12 +321,17 @@
 
   function renderDayDetails(p) {
     var iso = ui.selDay;
-    var cal = iso && state.calDays[iso];
+    var cal = iso && (state.calDays[iso] || (state.course && state.course[iso]));
     if (!iso || !cal) return '<div class="details empty" id="details">Нажми на день в календаре — покажу, что в нём было.</div>';
     var head = weekdayName(iso) + ', ' + humanDate(iso);
     if (cal.future) return '<div class="details" id="details"><div class="d-head"><b>' + esc(head) + '</b><span class="d-tag future">впереди</span></div><div class="d-empty">Этот день ещё не наступил.</div></div>';
 
-    var d = state.days[iso] || { done: {}, misses: [], plan: {}, timed: {} };
+    var d = state.days[iso];
+    if (!d) {
+      var t0 = cal.miss ? ['miss', 'есть пропуск'] : cal.p >= 1 ? ['ok', 'ЛФК выполнено'] : cal.p > 0 ? ['part', 'ЛФК частично'] : ['none', 'без ЛФК'];
+      return '<div class="details" id="details"><div class="d-head"><b>' + esc(head) + '</b><span class="d-tag ' + t0[0] + '">' + t0[1] + '</span></div>' +
+        '<div class="d-empty">Подробности дня — в режиме «Месяц».</div></div>';
+    }
     var tag = cal.miss ? ['miss', 'есть пропуск'] : cal.p >= 1 ? ['ok', 'ЛФК выполнено'] : cal.p > 0 ? ['part', 'ЛФК частично'] : ['none', 'без ЛФК'];
     var rows = '';
     DETAIL_ITEMS.forEach(function (it) {
@@ -269,6 +348,9 @@
     }
     if (d.plan && d.plan.kettlebell === 'off' && !d.done.kettlebell) {
       rows += '<div class="d-row rest"><i class="dot rest"></i><span>Гиря не нужна — день DDX</span></div>';
+    }
+    if (typeof d.pain === 'number') {
+      rows += '<div class="d-row"><i class="dot pain" style="--pain:' + painColor(d.pain) + '"></i><span>Боль в локте</span><b class="num">' + d.pain + '/10</b></div>';
     }
     return '<div class="details" id="details"><div class="d-head"><b>' + esc(head) + '</b><span class="d-tag ' + tag[0] + '">' + tag[1] + '</span></div>' +
       (rows || '<div class="d-empty">В этот день ничего не отмечено.</div>') + '</div>';
@@ -289,6 +371,29 @@
     return parts.join(', ');
   }
 
+  // Весь курс (11.10 – 11.01): клетка на день, по неделям; цвет — по ЛФК.
+  function renderCourse() {
+    var html = '<div class="course"><div class="c-row c-wd"><span></span>' + ['П', 'В', 'С', 'Ч', 'П', 'С', 'В'].map(function (d) { return '<span>' + d + '</span>'; }).join('') + '</div>';
+    LfkCalendar.courseGrid('2026-10-11', '2027-01-11').forEach(function (w) {
+      html += '<div class="c-row"><span class="c-m">' + w.month + '</span>' + w.days.map(function (iso) {
+        if (!iso) return '<span class="c-cell empty"></span>';
+        var d = (state.course && state.course[iso]) || {};
+        var cls = d.future ? 'fut' : d.miss ? 'miss' : d.fill ? 'full' : d.p >= 1 ? 'ok' : d.p > 0 ? 'part' : 'none';
+        return '<button class="c-cell ' + cls + (d.today ? ' today' : '') + (ui.selDay === iso ? ' sel' : '') + '" data-cday="' + iso + '" aria-label="' + esc(dayAria(iso, d)) + '"></button>';
+      }).join('') + '</div>';
+    });
+    var vals = Object.keys(state.course || {}).map(function (k) { return state.course[k]; });
+    var past = vals.filter(function (d) { return !d.future; }).length;
+    html += '</div><div class="legend"><span><i class="sq full"></i>всё ЛФК</span><span><i class="sq ok"></i>выполнено</span><span><i class="sq part"></i>частично</span><span><i class="sq miss"></i>пропуск</span>' +
+      '<span>прошло ' + past + ' из ' + vals.length + '</span></div>';
+    return html;
+  }
+
+  // Цвет оценки боли: 0–3 зелёный, 4–6 оранжевый, 7–10 красный.
+  function painColor(v) {
+    return v <= 3 ? 'var(--green)' : v <= 6 ? 'var(--amber)' : 'var(--red)';
+  }
+
   function renderProgress() {
     var p = state.progress;
     var html = renderBanner(p);
@@ -298,23 +403,30 @@
     }).join('') + '</div>';
 
     var ym = ui.month;
-    html += '<div class="cal-head"><button id="prev" aria-label="Предыдущий месяц">‹</button><span>' + MONTHS[+ym.slice(5, 7) - 1] + ' ' + ym.slice(0, 4) + '</span><button id="next" aria-label="Следующий месяц">›</button></div>';
-    html += '<div class="cal">' + ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(function (d) { return '<div class="wd">' + d + '</div>'; }).join('');
-    LfkCalendar.monthGrid(+ym.slice(0, 4), +ym.slice(5, 7)).forEach(function (week) {
-      week.forEach(function (iso, i) {
-        if (!iso) { html += '<div class="cell"></div>'; return; }
-        var d = state.calDays[iso] || {};
-        var nextIso = week[i + 1];
-        var link = d.chain && nextIso && state.calDays[nextIso] && state.calDays[nextIso].chain;
-        var cls = 'ring' + (d.fill && !d.miss ? ' full' : '') + (d.miss ? ' miss' : '') + (d.today ? ' today' : '') + (d.future ? ' future' : '');
-        html += '<button class="cell' + (link ? ' link' : '') + (ui.selDay === iso ? ' sel' : '') + '" data-day="' + iso + '" aria-pressed="' + (ui.selDay === iso) + '" aria-label="' + esc(dayAria(iso, d)) + '">' +
-          '<span class="' + cls + '" style="--p:' + Math.round((d.p || 0) * 100) + '%">' + +iso.slice(8, 10) + '</span>' +
-          '<span class="dots">' + (d.k ? '<b class="k"></b>' : '') + (d.r ? '<b class="r"></b>' : '') + (d.d ? '<b class="d"></b>' : '') + (d.t ? '<b class="t"></b>' : '') + '</span></button>';
+    html += '<div class="cal-switch"><div class="seg wide"><button data-calview="month" class="' + (ui.calView === 'month' ? 'on' : '') + '">Месяц</button>' +
+      '<button data-calview="course" class="' + (ui.calView === 'course' ? 'on' : '') + '">Весь курс</button></div></div>';
+    if (ui.calView === 'course') {
+      html += renderCourse();
+    } else {
+      html += '<div class="cal-head"><button id="prev" aria-label="Предыдущий месяц">‹</button><span>' + MONTHS[+ym.slice(5, 7) - 1] + ' ' + ym.slice(0, 4) + '</span><button id="next" aria-label="Следующий месяц">›</button></div>';
+      html += '<div class="cal">' + ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(function (d) { return '<div class="wd">' + d + '</div>'; }).join('');
+      LfkCalendar.monthGrid(+ym.slice(0, 4), +ym.slice(5, 7)).forEach(function (week) {
+        week.forEach(function (iso, i) {
+          if (!iso) { html += '<div class="cell"></div>'; return; }
+          var d = state.calDays[iso] || {};
+          var nextIso = week[i + 1];
+          var link = d.chain && nextIso && state.calDays[nextIso] && state.calDays[nextIso].chain;
+          var cls = 'ring' + (d.fill && !d.miss ? ' full' : '') + (d.miss ? ' miss' : '') + (d.today ? ' today' : '') + (d.future ? ' future' : '');
+          html += '<button class="cell' + (link ? ' link' : '') + (ui.selDay === iso ? ' sel' : '') + '" data-day="' + iso + '" aria-pressed="' + (ui.selDay === iso) + '" aria-label="' + esc(dayAria(iso, d)) + '">' +
+            '<span class="' + cls + '" style="--p:' + Math.round((d.p || 0) * 100) + '%">' + +iso.slice(8, 10) + '</span>' +
+            '<span class="dots">' + (d.k ? '<b class="k"></b>' : '') + (d.r ? '<b class="r"></b>' : '') + (d.d ? '<b class="d"></b>' : '') + (d.t ? '<b class="t"></b>' : '') + '</span></button>';
+        });
       });
-    });
-    html += '</div><div class="legend"><span><i class="dot lfk"></i>ЛФК</span><span><i class="dot kb"></i>гиря</span><span><i class="dot run"></i>бег</span><span><i class="dot ddx"></i>DDX</span><span><i class="dot tennis"></i>теннис</span><span><i class="dot red"></i>пропуск</span></div>';
+      html += '</div><div class="legend"><span><i class="dot lfk"></i>ЛФК</span><span><i class="dot kb"></i>гиря</span><span><i class="dot run"></i>бег</span><span><i class="dot ddx"></i>DDX</span><span><i class="dot tennis"></i>теннис</span><span><i class="dot red"></i>пропуск</span></div>';
+    }
 
     html += renderDayDetails(p);
+    html += '<button class="btn ghost report-btn" id="open-report">' + icon('doc') + 'Отчёт для врача</button>';
 
     if (p.misses.length) {
       html += '<div class="misses"><b>Пропуски</b>' + p.misses.slice(-10).reverse().map(function (m) {
@@ -342,41 +454,72 @@
     return '<button class="sw-toggle' + (on ? ' on' : '') + '" role="switch" aria-checked="' + on + '" data-toggle="' + key + '"><i></i></button>';
   }
 
+  // Настройки — сгруппированный список в стиле iOS; изменения — в листе снизу.
+  var THEME_NAMES = { auto: 'Как в Telegram', light: 'Светлая', dark: 'Тёмная' };
+  var COLOR_ROWS = [['lfk', 'ЛФК'], ['kb', 'Комплекс с гирей'], ['run', 'Бег'], ['ddx', 'DDX Атлетика'], ['tennis', 'Теннис']];
+
+  function liLink(key, title, value, sub) {
+    return '<button class="li" data-sheet="' + key + '"><span class="li-l">' + esc(title) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>' +
+      '<span class="li-v">' + value + '</span>' + icon('chevron', 'chev') + '</button>';
+  }
+
+  function liToggle(key, title) {
+    return '<div class="li"><span class="li-l">' + esc(title) + '</span>' + toggleHtml(key, prefs[key]) + '</div>';
+  }
+
+  function range(w) {
+    return fmtMin(w.from) + '–' + fmtMin(w.to);
+  }
+
   function renderSettings() {
-    var rows = [['lfk', 'ЛФК'], ['kb', 'Комплекс с гирей'], ['run', 'Бег'], ['ddx', 'DDX Атлетика'], ['tennis', 'Теннис']];
     var st = state.settings || DEFAULT_REMINDERS;
-    var html = '<div class="head"><h1>Настройки</h1></div>';
+    var swatches = COLOR_ROWS.map(function (r) { return '<i class="sw-mini" style="background:' + colors[r[0]] + '"></i>'; }).join('');
+    return '<div class="head"><h1>Настройки</h1></div>' +
+      '<div class="grp">Таймер</div><div class="group">' +
+      liToggle('sound', 'Звук') + liToggle('vibe', 'Вибрация') +
+      liLink('restSec', 'Отдых между подходами', prefs.restSec + ' с', 'тяга и упор') +
+      liLink('stretchRestSec', 'Отдых в растяжке', prefs.stretchRestSec + ' с', 'между повторами') + '</div>' +
+      '<div class="grp">Напоминания бота</div><div class="group">' +
+      liLink('lfk', 'ЛФК', range(st.lfk), 'растяжка, тяга, упор') +
+      liLink('stretchAt', 'Растяжка днём', fmtMin(st.stretchAt)) +
+      liLink('kb', 'Комплекс с гирей', range(st.kb)) +
+      liLink('run', 'Бег', range(st.run), 'пока на неделе нет пробежки') +
+      liLink('ddxAt', 'DDX: записаться', fmtMin(st.ddxAt), 'по воскресеньям') + '</div>' +
+      '<div class="grp">Внешний вид</div><div class="group">' +
+      liLink('theme', 'Тема', THEME_NAMES[prefs.theme]) +
+      liLink('colors', 'Цвета активностей', '<span class="sw-row">' + swatches + '</span>') + '</div>';
+  }
 
-    html += '<div class="grp">Таймер</div>' +
-      '<div class="set-row"><span>Звук</span>' + toggleHtml('sound', prefs.sound) + '</div>' +
-      '<div class="set-row"><span>Вибрация</span>' + toggleHtml('vibe', prefs.vibe) + '</div>' +
-      '<div class="set-row col"><span>Отдых между подходами<small>тяга и упор</small></span>' +
-      segHtml('restSec', LfkSettings.REST_OPTIONS.map(function (v) { return { v: v, t: v + ' с' }; }), prefs.restSec) + '</div>' +
-      '<div class="set-row col"><span>Отдых между повторами<small>растяжка нерва</small></span>' +
-      segHtml('stretchRestSec', LfkSettings.STRETCH_REST_OPTIONS.map(function (v) { return { v: v, t: v + ' с' }; }), prefs.stretchRestSec) + '</div>';
+  // Содержимое листа: [заголовок, html].
+  function sheetContent(key) {
+    var st = state.settings || DEFAULT_REMINDERS;
+    var opt = function (arr, unit) { return arr.map(function (v) { return { v: v, t: v + unit }; }); };
+    var win = function (k, title, note) {
+      return [title, '<div class="range big">' + timeInput(k + '.from', st[k].from) + '<em>—</em>' + timeInput(k + '.to', st[k].to) + '</div><p class="sheet-note">' + note + '</p>'];
+    };
+    switch (key) {
+      case 'restSec': return ['Отдых между подходами', segHtml('restSec', opt(LfkSettings.REST_OPTIONS, ' с'), prefs.restSec) + '<p class="sheet-note">Для тяги резинки и упора на пальцы.</p>'];
+      case 'stretchRestSec': return ['Отдых в растяжке', segHtml('stretchRestSec', opt(LfkSettings.STRETCH_REST_OPTIONS, ' с'), prefs.stretchRestSec) + '<p class="sheet-note">Пауза между 10 повторами растяжки нерва (каждый — 5 секунд).</p>'];
+      case 'lfk': return win('lfk', 'ЛФК — когда напоминать', 'Напомню в начале окна, потом каждый час и за 15 минут до конца. Окно — с 6:00 до 23:45.');
+      case 'kb': return win('kb', 'Комплекс с гирей', 'Только в дни, когда гиря положена. Если окно совпадает с ЛФК — одно общее сообщение.');
+      case 'run': return win('run', 'Бег', 'Пока на неделе нет пробежки: в начале окна и за 15 минут до конца; в воскресенье — «последний день».');
+      case 'stretchAt': return ['Растяжка днём', '<div class="range big">' + timeInput('stretchAt', st.stretchAt) + '</div><p class="sheet-note">Одно напоминание, если растяжка ещё не сделана.</p>'];
+      case 'ddxAt': return ['DDX: записаться', '<div class="range big">' + timeInput('ddxAt', st.ddxAt) + '</div><p class="sheet-note">Каждое воскресенье — записаться на занятие в понедельник.</p>'];
+      case 'theme': return ['Тема', segHtml('theme', [{ v: 'auto', t: 'Как в Telegram' }, { v: 'light', t: 'Светлая' }, { v: 'dark', t: 'Тёмная' }], prefs.theme)];
+      case 'colors': return ['Цвета активностей', COLOR_ROWS.map(function (r) {
+        return '<div class="color-row"><span>' + r[1] + '</span><span class="swatches">' + LfkSettings.PALETTE.map(function (c) {
+          return '<button class="sw' + (colors[r[0]] === c ? ' on' : '') + '" style="background:' + c + '" data-color="' + c + '" data-key="' + r[0] + '" aria-label="' + esc(r[1] + ': ' + c) + '"></button>';
+        }).join('') + '</span></div>';
+      }).join('') + '<button class="btn ghost" id="reset-colors">Сбросить цвета</button>'];
+    }
+    return ['', ''];
+  }
 
-    html += '<div class="grp">Напоминания бота</div>' +
-      '<div class="set-row"><span>Растяжка днём<small>одно напоминание</small></span>' + timeInput('stretchAt', st.stretchAt) + '</div>' +
-      '<div class="set-row"><span>DDX: записаться<small>каждое воскресенье</small></span>' + timeInput('ddxAt', st.ddxAt) + '</div>' +
-      '<div class="set-row col"><span>ЛФК: растяжка, тяга, упор<small>когда можно заниматься — напомню в начале, каждый час и за 15 минут до конца</small></span>' +
-      '<span class="range">' + timeInput('lfk.from', st.lfk.from) + '<em>—</em>' + timeInput('lfk.to', st.lfk.to) + '</span></div>' +
-      '<div class="set-row col"><span>Комплекс с гирей<small>своё окно; если совпадает с ЛФК — одно общее сообщение</small></span>' +
-      '<span class="range">' + timeInput('kb.from', st.kb.from) + '<em>—</em>' + timeInput('kb.to', st.kb.to) + '</span></div>' +
-      '<div class="set-row col"><span>Бег<small>пока на неделе нет пробежки: в начале окна и за 15 минут до конца</small></span>' +
-      '<span class="range">' + timeInput('run.from', st.run.from) + '<em>—</em>' + timeInput('run.to', st.run.to) + '</span></div>';
-
-    html += '<div class="grp">Внешний вид</div>' +
-      '<div class="set-row col"><span>Тема</span>' +
-      segHtml('theme', [{ v: 'auto', t: 'Как в Telegram' }, { v: 'light', t: 'Светлая' }, { v: 'dark', t: 'Тёмная' }], prefs.theme) + '</div>';
-
-    html += '<div class="grp">Цвета на экране «Прогресс»</div>';
-    rows.forEach(function (r) {
-      html += '<div class="set-row"><span>' + r[1] + '</span><span class="swatches">' + LfkSettings.PALETTE.map(function (c) {
-        return '<button class="sw' + (colors[r[0]] === c ? ' on' : '') + '" style="background:' + c + '" data-color="' + c + '" data-key="' + r[0] + '" aria-label="' + c + '"></button>';
-      }).join('') + '</span></div>';
-    });
-    html += '<button class="btn ghost" id="reset-colors">Сбросить цвета</button>';
-    return html;
+  function renderSheet() {
+    if (!ui.sheet) return '';
+    var c = sheetContent(ui.sheet);
+    return '<div class="sheet-back" data-close-sheet></div><div class="sheet" role="dialog" aria-label="' + esc(c[0]) + '">' +
+      '<div class="sheet-grip"></div><div class="sheet-head"><b>' + esc(c[0]) + '</b><button class="sheet-done" data-close-sheet>Готово</button></div>' + c[1] + '</div>';
   }
 
   function toMinutes(v) {
@@ -419,16 +562,49 @@
   }
 
   function render() {
+    var tabs = [['today', 'Сегодня', 'today'], ['progress', 'Прогресс', 'chart'], ['settings', 'Настройки', 'gear']];
     root.innerHTML =
-      '<div class="topbar"><div class="tabs"><button data-tab="today" class="' + (ui.tab === 'today' ? 'on' : '') + '">Сегодня</button>' +
-      '<button data-tab="progress" class="' + (ui.tab === 'progress' ? 'on' : '') + '">Прогресс</button></div>' +
-      '<button class="gear' + (ui.tab === 'settings' ? ' on' : '') + '" data-tab="settings" aria-label="Настройки">' + icon('gear') + '</button></div>' +
       (ui.tab === 'today' ? renderToday() : ui.tab === 'progress' ? renderProgress() : renderSettings()) +
-      (ui.tab === 'settings' ? '<div class="ver">Версия ' + esc(state.version) + '</div>' : '');
+      (ui.tab === 'settings' ? '<div class="ver">Версия ' + esc(state.version) + '</div>' : '') +
+      '<nav class="tabbar" role="tablist">' + tabs.map(function (t) {
+        return '<button role="tab" aria-selected="' + (ui.tab === t[0]) + '" data-tab="' + t[0] + '" class="' + (ui.tab === t[0] ? 'on' : '') + '">' + icon(t[2]) + '<span>' + t[1] + '</span></button>';
+      }).join('') + '</nav>' + renderSheet();
+    ui.popItem = null;
 
     root.querySelectorAll('[data-tab]').forEach(function (b) {
-      b.onclick = function () { ui.tab = b.dataset.tab; render(); };
+      b.onclick = function () {
+        if (ui.tab !== b.dataset.tab) haptic();
+        ui.tab = b.dataset.tab;
+        ui.sheet = null;
+        render();
+        window.scrollTo(0, 0);
+      };
     });
+    root.querySelectorAll('[data-sheet]').forEach(function (b) {
+      b.onclick = function () { ui.sheet = b.dataset.sheet; render(); };
+    });
+    root.querySelectorAll('[data-close-sheet]').forEach(function (b) {
+      b.onclick = function () { ui.sheet = null; render(); };
+    });
+    root.querySelectorAll('[data-calview]').forEach(function (b) {
+      b.onclick = function () { ui.calView = b.dataset.calview; render(); };
+    });
+    root.querySelectorAll('[data-cday]').forEach(function (b) {
+      b.onclick = function () {
+        ui.selDay = b.dataset.cday;
+        render();
+        var det = document.getElementById('details');
+        if (det && det.scrollIntoView) det.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
+      };
+    });
+    var sf = document.getElementById('start-flow');
+    if (sf) sf.onclick = startFlow;
+    var rf = document.getElementById('resume-flow');
+    if (rf) rf.onclick = function () { overlayOpen = true; initAudio(); afterChange([]); };
+    var sr = document.getElementById('show-rest');
+    if (sr) sr.onclick = function () { ui.showRest = true; render(); };
+    var orp = document.getElementById('open-report');
+    if (orp) orp.onclick = openReport;
     root.querySelectorAll('[data-item]').forEach(function (b) {
       b.onclick = function () { mark(b.dataset.item, b.dataset.done !== '1'); };
     });
@@ -537,7 +713,7 @@
     } catch (e) {}
   }
 
-  function openSession(item) {
+  function openSession(item, inFlow) {
     initAudio();
     var row = state.today.list.filter(function (x) { return x.item === item; })[0];
     var begin = function (confirmed) {
@@ -547,6 +723,7 @@
         if (window.LFK_MOCK && /[?&]fast=1/.test(location.search)) { plan.holdMs = 5000; plan.restMs = plan.restMs && 4000; }
         session = LfkSession.create(item, state.today.date, plan);
         session.confirm = !!confirmed;
+        if (inFlow && flow) session.flow = { queue: flow.queue, idx: flow.idx };
       }
       overlayOpen = true;
       saveSession();
@@ -560,6 +737,7 @@
   }
 
   function closeOverlay() {
+    if (!session || session.phase === 'done') { flow = null; session = null; saveSession(); }
     overlayOpen = false;
     keepAwake(false);
     render();
@@ -574,6 +752,10 @@
     if (act === 'resume') session = LfkSession.resume(session, now);
     if (act === 'skip') session = LfkSession.skipRest(session);
     if (act === 'close') return closeOverlay();
+    if (act === 'flow-go') { flow.stage = 'session'; session = null; openSession(flow.queue[flow.idx], true); return; }
+    if (act === 'flow-skip') return flowAdvance();
+    if (act === 'pain-save') return savePain(ui.painVal);
+    if (act === 'pain-skip') return finishPain();
     afterChange([]);
   }
 
@@ -588,6 +770,10 @@
       signal('end');
       mark(session.item, true, session.confirm, true);
       saveSession();
+      if (flow) { renderOverlay(); setTimeout(flowAdvance, 900); return; } // «Готово» и к следующему
+      if ((session.item === 'pull' || session.item === 'push') && needPain()) {
+        flow = { queue: [], idx: 0, stage: 'pain', solo: true };
+      }
     }
     renderOverlay();
   }
@@ -599,7 +785,7 @@
 
   function renderOverlay() {
     var el = document.getElementById('overlay');
-    if (!overlayOpen || !session) {
+    if (!overlayOpen || (!session && !flow)) {
       if (el) el.remove();
       if (timerId) { clearInterval(timerId); timerId = null; }
       return;
@@ -608,6 +794,10 @@
       el = document.createElement('div');
       el.id = 'overlay';
       document.body.appendChild(el);
+    }
+    if (flow && flow.stage !== 'session') {
+      if (timerId) { clearInterval(timerId); timerId = null; }
+      return renderFlowScreen(el);
     }
     var s = session;
     var p = s.plan;
@@ -653,7 +843,7 @@
       : 'background:radial-gradient(var(--bg) 66.5%, transparent 67%), conic-gradient(' + color + ' 0 ' + (frac * 100).toFixed(1) + '%, var(--track) 0)';
 
     el.className = 'tone-' + tone;
-    el.innerHTML = '<div class="ov-head"><span>' + esc(LABELS[s.item]) + '</span><button data-act="close" aria-label="Закрыть">' + icon('close') + '</button></div>' +
+    el.innerHTML = '<div class="ov-head"><span>' + esc(LABELS[s.item]) + (flow ? '<small class="step">шаг ' + (flow.idx + 1) + ' из ' + flow.queue.length + '</small>' : '') + '</span><button data-act="close" aria-label="Закрыть">' + icon('close') + '</button></div>' +
       '<div class="sets' + (p.sets > 5 ? ' many' : '') + '">' + dots + '</div>' +
       '<div class="ring" style="' + ring + '"><span class="word">' + esc(word) + '</span><b>' + big + '</b><small>' + esc(sub) + '</small></div>' +
       '<div class="next">' + esc(next) + '</div>' +
@@ -675,11 +865,162 @@
     }
   }
 
+  // --- «Начать ЛФК»: проход по всем упражнениям подряд, затем оценка боли
+
+  function startFlow() {
+    var queue = LfkSession.flowQueue(state.today.list);
+    if (!queue.length) return;
+    initAudio();
+    flow = { queue: queue, idx: 0, stage: 'between' };
+    overlayOpen = true;
+    render();
+  }
+
+  function needPain() {
+    var list = state.today.list;
+    var done = function (it) { return list.some(function (x) { return x.item === it && x.done; }); };
+    return state.today.pain === null && done('pull') && done('push');
+  }
+
+  function flowAdvance() {
+    session = null;
+    saveSession();
+    flow.idx++;
+    if (flow.idx < flow.queue.length) flow.stage = 'between';
+    else flow.stage = needPain() ? 'pain' : 'done';
+    if (flow.stage === 'done') celebrate();
+    renderOverlay();
+  }
+
+  function finishPain() {
+    if (flow && flow.solo) { flow = null; session = null; saveSession(); overlayOpen = false; render(); return; }
+    flow.stage = 'done';
+    celebrate();
+    renderOverlay();
+  }
+
+  function savePain(v) {
+    state.today.pain = v; // оптимистично
+    apiCall({ action: 'pain', date: state.today.date, value: v }).then(function (r) {
+      if (r && r.error) throw new Error(r.error);
+    }).catch(function () { popup('Не сохранилось', 'Оценку боли сохранить не удалось. Попробуй ещё раз.'); state.today.pain = null; });
+    buzz('light');
+    finishPain();
+  }
+
+  function renderFlowScreen(el) {
+    var html = '';
+    if (flow.stage === 'between') {
+      var item = flow.queue[flow.idx];
+      var x = state.today.list.filter(function (y) { return y.item === item; })[0] || {};
+      var plan = LfkSession.planFor(item, state.pullPhase, prefs);
+      var dose = item === 'stretch' ? '10 × 5 с, отдых ' + prefs.stretchRestSec + ' с' : x.dose;
+      html = '<div class="ov-head"><span>ЛФК<small class="step">шаг ' + (flow.idx + 1) + ' из ' + flow.queue.length + '</small></span><button data-act="close" aria-label="Закрыть">' + icon('close') + '</button></div>' +
+        '<div class="steps">' + flow.queue.map(function (it, i) { return '<i class="' + (i < flow.idx ? 'f' : i === flow.idx ? 'p' : '') + '"></i>'; }).join('') + '</div>' +
+        '<div class="flow-card"><span class="h-kicker">' + (flow.idx ? 'Дальше' : 'Начинаем') + '</span><b>' + esc(LABELS[item]) + '</b>' +
+        '<span class="flow-dose">' + esc(dose || '') + '</span><span class="flow-time">~' + Math.max(1, Math.round(LfkSession.estimateSec(plan) / 60)) + ' мин</span></div>' +
+        '<div class="ov-actions"><button class="btn" data-act="flow-go">' + icon('play', 'fill') + 'Начать</button>' +
+        '<button class="btn ghost" data-act="flow-skip">Пропустить</button><div class="ov-note">Боль — не выше 3–4 из 10</div></div>';
+    } else if (flow.stage === 'pain') {
+      var v = ui.painVal;
+      html = '<div class="ov-head"><span>Как локоть?</span><button data-act="pain-skip" aria-label="Пропустить">' + icon('close') + '</button></div>' +
+        '<div class="pain-box"><div class="pain-num num" style="color:' + painColor(v) + '">' + v + '</div><div class="pain-cap">из 10</div>' +
+        '<input type="range" class="pain-range" min="0" max="10" step="1" value="' + v + '" aria-label="Боль от 0 до 10" style="--pain:' + painColor(v) + '">' +
+        '<div class="pain-scale"><span>нет боли</span><span>терпимо</span><span>сильно</span></div>' +
+        '<p class="sheet-note">Реабилитолог: нагрузка такая, чтобы боль была не выше 3–4. Оценка попадёт в отчёт для врача.</p></div>' +
+        '<div class="ov-actions"><button class="btn" data-act="pain-save">Сохранить</button><button class="btn ghost" data-act="pain-skip">Пропустить</button></div>';
+    } else {
+      var lfk = state.today.list.filter(function (y) { return y.group === 'lfk' && y.done; });
+      html = '<div class="ov-head"><span>ЛФК</span><button data-act="close" aria-label="Закрыть">' + icon('close') + '</button></div>' +
+        '<div class="done-box"><div class="done-ic">' + icon('check', 'big') + '</div><b>ЛФК на сегодня — всё!</b>' +
+        '<div class="done-list">' + lfk.map(function (y) { return '<span>' + icon(y.timed ? 'timer' : 'check') + esc(y.label) + '</span>'; }).join('') + '</div>' +
+        (typeof state.today.pain === 'number' ? '<small>Боль: ' + state.today.pain + '/10</small>' : '') + '</div>' +
+        '<div class="ov-actions"><button class="btn" data-act="close">Готово</button></div>';
+    }
+    el.className = 'tone-flow';
+    el.innerHTML = html;
+    el.querySelectorAll('[data-act]').forEach(function (b) {
+      b.onclick = function () { sessionAction(b.dataset.act); };
+    });
+    var r = el.querySelector('.pain-range');
+    if (r) r.oninput = function () {
+      ui.painVal = Number(r.value);
+      var n = el.querySelector('.pain-num');
+      n.textContent = r.value;
+      n.style.color = painColor(ui.painVal);
+      r.style.setProperty('--pain', painColor(ui.painVal));
+      buzz('light');
+    };
+  }
+
+  // --- отчёт для врача
+
+  function openReport() {
+    report = 'loading';
+    renderReport();
+    apiCall({ action: 'report' }).then(function (r) {
+      if (!r || !r.report) throw new Error((r && r.error) || 'нет данных');
+      report = r.report;
+      renderReport();
+    }).catch(function (e) { report = null; renderReport(); popup('Отчёт', 'Не удалось собрать отчёт: ' + e.message); });
+  }
+
+  function painChart(series) {
+    if (!series.length) return '<div class="chart-empty">Оценок боли пока нет — они появятся после тяги и упора.</div>';
+    var W = 320, H = 130, L = 22, R = 8, T = 8, B = 20;
+    var n = series.length;
+    var x = function (i) { return L + (n === 1 ? (W - L - R) / 2 : i * (W - L - R) / (n - 1)); };
+    var y = function (v) { return T + (10 - v) * (H - T - B) / 10; };
+    var pts = series.map(function (p, i) { return x(i).toFixed(1) + ',' + y(p.value).toFixed(1); }).join(' ');
+    var svg = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="График боли">' +
+      '<rect x="' + L + '" y="' + y(4) + '" width="' + (W - L - R) + '" height="' + (y(0) - y(4)) + '" class="ok-band"/>' +
+      [0, 4, 7, 10].map(function (v) { return '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" class="grid"/><text x="2" y="' + (y(v) + 4) + '" class="ax">' + v + '</text>'; }).join('') +
+      '<polyline points="' + pts + '" class="line"/>' +
+      series.map(function (p, i) { return '<circle cx="' + x(i) + '" cy="' + y(p.value) + '" r="3.5" style="fill:' + painColor(p.value) + '"/>'; }).join('') +
+      '<text x="' + L + '" y="' + (H - 4) + '" class="ax">' + humanDate(series[0].date) + '</text>' +
+      (n > 1 ? '<text x="' + (W - R) + '" y="' + (H - 4) + '" class="ax end">' + humanDate(series[n - 1].date) + '</text>' : '') + '</svg>';
+    return svg;
+  }
+
+  function renderReport() {
+    var el = document.getElementById('report');
+    if (!report) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement('div'); el.id = 'report'; document.body.appendChild(el); }
+    if (report === 'loading') { el.innerHTML = '<div class="ov-head"><span>Отчёт для врача</span></div>' + skeletonHtml(); return; }
+    var r = report;
+    var row = function (k, v) { return '<div class="r-row"><span>' + k + '</span><b>' + v + '</b></div>'; };
+    el.innerHTML = '<div class="ov-head"><span>Отчёт для врача<small class="step">' + humanDate(r.period.from) + ' — ' + humanDate(r.period.to) + '</small></span>' +
+      '<button data-rep="close" aria-label="Закрыть">' + icon('close') + '</button></div>' +
+      '<div class="r-scroll"><div class="r-hero"><div class="r-pct num">' + r.compliance.percent + '%</div><div>соблюдение режима<small>' + r.compliance.goodDays + ' из ' + r.period.days + ' дн. без пропусков</small></div></div>' +
+      '<div class="r-card">' + row('Серия / рекорд', r.streak + ' / ' + r.bestStreak + ' дн.') +
+      row('Растяжка нерва', r.sessions.stretch) + row('Тяга резинки', r.sessions.pull) + row('Упор на пальцы', r.sessions.push) +
+      row('С таймером', r.sessions.timed + ' упр.') +
+      row('Этап тяги', r.phase.phase === 'static' ? 'статика, ' + (r.phase.done + 1) + '/' + r.phase.staticSessions : 'динамика') +
+      row('До конца курса', r.daysLeft + ' дн.') + '</div>' +
+      '<div class="grp">Боль в локте (0–10)</div><div class="r-card">' + painChart(r.pain.series) +
+      (r.pain.series.length ? row('Средняя за неделю', r.pain.avg7 === null ? '—' : r.pain.avg7) + row('Максимум', r.pain.max) : '') + '</div>' +
+      '<div class="grp">Пропуски</div><div class="r-card">' + (r.misses.length ? r.misses.slice(-12).map(function (m) {
+        return '<div class="r-row"><span>' + humanDate(m.date) + '</span><b class="miss-t">' + m.items.map(function (i) { return LABELS[i]; }).join(', ') + '</b></div>';
+      }).join('') : '<div class="r-row"><span>Пропусков нет</span><b>🎉</b></div>') + '</div></div>' +
+      '<div class="ov-actions"><button class="btn" data-rep="send">' + icon('send') + 'Отправить в чат</button></div>';
+    el.querySelectorAll('[data-rep]').forEach(function (b) {
+      b.onclick = function () {
+        if (b.dataset.rep === 'close') { report = null; renderReport(); return; }
+        b.disabled = true;
+        apiCall({ action: 'sendReport' }).then(function (res) {
+          popup('Отчёт', res && res.ok ? 'Отправил в чат с ботом — его можно переслать врачу.' : 'Не получилось отправить, попробуй ещё раз.');
+          b.disabled = false;
+        }).catch(function () { b.disabled = false; popup('Отчёт', 'Не получилось отправить, попробуй ещё раз.'); });
+      };
+    });
+  }
+
   function offerResume() {
     try {
       var saved = LfkSession.restore(localStorage.getItem(SESSION_KEY), state.today.date);
       if (!saved) return;
       session = LfkSession.tick(saved, Date.now()).state;
+      if (session.flow) flow = { queue: session.flow.queue, idx: session.flow.idx, stage: 'session' };
       confirmBox('Продолжить «' + LABELS[session.item] + '»? Сделано подходов: ' + session.completed + ' из ' + session.plan.sets + '.', function (ok) {
         if (ok) { overlayOpen = true; afterChange([]); }
         else { session = null; saveSession(); render(); }

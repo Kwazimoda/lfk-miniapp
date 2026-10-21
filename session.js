@@ -98,7 +98,25 @@
     }
   }
 
+  // Примерная длительность упражнения в секундах (для подписи «~N мин»).
+  var REPS_SET_SEC = 30;
+  function estimateSec(plan) {
+    if (!plan) return 0;
+    var work = plan.mode === 'reps' ? REPS_SET_SEC : plan.holdMs / 1000;
+    return plan.sets * work + (plan.sets - 1) * (plan.restMs / 1000);
+  }
+
+  // Очередь «Начать ЛФК»: несделанные обязательные упражнения ЛФК в порядке растяжка → тяга → упор.
+  var FLOW_ORDER = ['stretch', 'pull', 'push'];
+  function flowQueue(list) {
+    return FLOW_ORDER.filter(function (item) {
+      var x = list.filter(function (y) { return y.item === item; })[0];
+      return x && x.status === 'required' && !x.done;
+    });
+  }
+
   var api = {
+    estimateSec: estimateSec, flowQueue: flowQueue,
     planFor: planFor, create: create, start: start, doneSet: doneSet, pause: pause, resume: resume,
     skipRest: skipRest, remainingMs: remainingMs, tick: tick, restore: restore,
   };

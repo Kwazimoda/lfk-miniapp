@@ -12,7 +12,7 @@
   function view(iso, wd) {
     var m = marks[iso] || {};
     return {
-      date: iso, weekdayName: NAMES[wd],
+      date: iso, weekdayName: NAMES[wd], pain: (marks[iso] || {}).pain === undefined ? null : marks[iso].pain,
       list: Object.keys(LABELS).map(function (k) {
         var session = k === 'pull' || k === 'push';
         var status = k === 'stretch' ? 'required' : session ? (rest ? 'rest' : 'required') : k === 'kettlebell' ? (wd === 0 ? 'off' : 'required') : 'optional';
@@ -60,6 +60,20 @@
     return out;
   }
 
+  function courseMap() {
+    var out = {};
+    var d = new Date(Date.UTC(2026, 9, 11));
+    while (d <= new Date(Date.UTC(2027, 0, 11))) {
+      var iso = d.toISOString().slice(0, 10);
+      var day = +iso.slice(8, 10);
+      var o = { p: 0, fill: false, miss: false, today: iso === today, future: iso > today };
+      if (iso < today && iso >= '2026-10-11') { o.p = day % 5 === 3 ? 0.66 : 1; o.miss = iso === '2026-10-13'; o.fill = day % 2 === 0; }
+      out[iso] = o;
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    return out;
+  }
+
   var mockSettings = { stretchAt: 780, ddxAt: 1140, lfk: { from: 1200, to: 1380 }, kb: { from: 1200, to: 1380 }, run: { from: 1020, to: 1140 } };
 
   function state(month) {
@@ -70,6 +84,7 @@
       today: view(today, 1), yesterday: view('2026-10-19', 0),
       pullPhase: { phase: 'static', done: 3, staticSessions: 6 },
       settings: mockSettings,
+      course: courseMap(),
       calDays: calDays(m),
       progress: { bestStreak: 6, kbWeeks: 2, streakStart: '2026-10-15', timed: { timed: 4, total: 5 }, streak: 6, totalMisses: 0, misses: [], daysLeft: 83, daysDone: 9, daysTotal: 92, week: { pullPush: 1, kettlebell: 1, run: 1 }, runWeeks: 2, kettlebellShortWeeks: [] },
       month: m, calendar: cal.calendar, days: cal.days,
@@ -78,6 +93,19 @@
 
   window.LfkMock = {
     call: function (body) {
+      if (body.action === 'pain') {
+        (marks[body.date] = marks[body.date] || {}).pain = body.value;
+        return { ok: true };
+      }
+      if (body.action === 'report' || body.action === 'sendReport') {
+        if (body.action === 'sendReport') return { ok: true };
+        return { report: {
+          period: { from: '2026-10-20', to: '2026-10-19', days: 9 }, compliance: { goodDays: 8, percent: 89 }, streak: 6, bestStreak: 6,
+          sessions: { stretch: 9, pull: 4, push: 4, timed: 7 }, phase: { phase: 'static', done: 3, staticSessions: 6 },
+          pain: { series: [{ date: '2026-10-12', value: 5 }, { date: '2026-10-14', value: 4 }, { date: '2026-10-16', value: 4 }, { date: '2026-10-18', value: 3 }, { date: '2026-10-19', value: 2 }], avg7: 3.3, max: 5 },
+          misses: [{ date: '2026-10-13', items: ['push'] }], daysLeft: 83, week: { pullPush: 1, kettlebell: 1, run: 1, tennis: 0 },
+        } };
+      }
       if (body.action === 'saveSettings') {
         mockSettings = body.settings;
         return { ok: true, settings: mockSettings };
