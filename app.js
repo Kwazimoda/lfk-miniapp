@@ -664,8 +664,8 @@
       '<div class="grp">Внешний вид</div><div class="group">' +
       liLink('theme', 'Тема', THEME_NAMES[prefs.theme]) +
       liLink('colors', 'Цвета активностей', '<span class="sw-row">' + swatches + '</span>') + '</div>' +
-      '<div class="grp">Для врача</div><div class="group">' +
-      '<button class="li" data-action="report"><span class="li-l">Отчёт для врача<small>соблюдение, боль, пропуски — можно отправить в чат</small></span>' + icon('chevron', 'chev') + '</button></div>' +
+      '<div class="grp">Данные</div><div class="group">' +
+      '<button class="li" data-action="report"><span class="li-l">Статистика<small>соблюдение, боль, пропуски — можно отправить врачу в чат</small></span>' + icon('chevron', 'chev') + '</button></div>' +
       '<div class="grp">Проверка</div><div class="group">' +
       liLink('testmode', 'Режим тестирования', LfkTest.active ? 'включён' : '', 'жми что угодно — данные не сохранятся') + '</div>';
   }
@@ -1181,7 +1181,7 @@
       if (!r || !r.report) throw new Error((r && r.error) || 'нет данных');
       report = r.report;
       renderReport();
-    }).catch(function (e) { report = null; renderReport(); popup('Отчёт', 'Не удалось собрать отчёт: ' + e.message); });
+    }).catch(function (e) { report = null; renderReport(); popup('Статистика', 'Не удалось собрать статистику: ' + e.message); });
   }
 
   function painChart(series) {
@@ -1214,7 +1214,7 @@
     var r = report;
     var row = function (k, v) { return '<div class="r-row"><span>' + k + '</span><b>' + v + '</b></div>'; };
     el.innerHTML = '<div class="ov-head rep-head"><button class="back-btn" data-rep="close" aria-label="Назад">' + icon('back') + 'Назад</button>' +
-      '<span class="rep-title">Отчёт для врача<small class="step">' + humanDate(r.period.from) + ' — ' + humanDate(r.period.to) + '</small></span></div>' +
+      '<span class="rep-title">Статистика<small class="step">' + humanDate(r.period.from) + ' — ' + humanDate(r.period.to) + '</small></span></div>' +
       '<div class="r-scroll"><div class="r-hero"><div class="r-pct num">' + r.compliance.percent + '%</div><div>соблюдение режима<small>' + r.compliance.goodDays + ' из ' + r.period.days + ' дн. без пропусков</small></div></div>' +
       '<div class="r-card">' + row('Серия / рекорд', r.streak + ' / ' + r.bestStreak + ' дн.') +
       row('Растяжка нерва', r.sessions.stretch) + row('Тяга резинки', r.sessions.pull) + row('Упор на пальцы', r.sessions.push) +
@@ -1233,9 +1233,9 @@
         if (b.dataset.rep === 'close') { report = null; renderReport(); return; }
         b.disabled = true; // «Отправить в чат»
         apiCall({ action: 'sendReport' }).then(function (res) {
-          popup('Отчёт', res && res.ok ? 'Отправил в чат с ботом — его можно переслать врачу.' : 'Не получилось отправить, попробуй ещё раз.');
+          popup('Статистика', res && res.ok ? 'Отправил в чат с ботом — её можно переслать врачу.' : 'Не получилось отправить, попробуй ещё раз.');
           b.disabled = false;
-        }).catch(function () { b.disabled = false; popup('Отчёт', 'Не получилось отправить, попробуй ещё раз.'); });
+        }).catch(function () { b.disabled = false; popup('Статистика', 'Не получилось отправить, попробуй ещё раз.'); });
       };
     });
   }
