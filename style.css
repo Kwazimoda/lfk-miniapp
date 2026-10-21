@@ -452,3 +452,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
 :root.testing .skel, :root.testing .head { }
 .test-list { margin: 10px 0 0; padding-left: 20px; font-size: 15px; line-height: 1.5; }
 .sheet-note.first { margin-top: 0; }
+
+/* Кнопка «Назад» в отчёте и запас высоты под календарь */
+.back-btn { border: 0; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 16px 0 10px; border-radius: 22px; font-size: 16px; font-weight: 600; }
+:root[data-scheme="light"] .back-btn { color: color-mix(in srgb, var(--accent) 85%, #000); }
+.back-btn .ic { width: 20px; height: 20px; stroke-width: 2.4; }
+.rep-head { justify-content: flex-start; gap: 14px; }
+.rep-title { font-size: 20px; font-weight: 600; }
+#report .ov-actions { display: flex; flex-direction: column; gap: 8px; }
+#report .ov-actions .btn { margin-top: 0; }
+#calzone { min-height: calc(100vh - 8px - var(--top) - var(--testbar, 0px) - 88px - var(--bottom)); min-height: calc(100dvh - 8px - var(--top) - var(--testbar, 0px) - 88px - var(--bottom)); }
+.ov-head .back-btn { width: auto; height: auto; min-height: 44px; flex: none; border-radius: 22px; white-space: nowrap; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+:root[data-scheme="light"] .ov-head .back-btn { color: color-mix(in srgb, var(--accent) 85%, #000); }

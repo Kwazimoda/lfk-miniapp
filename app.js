@@ -37,6 +37,7 @@
     today: '<rect x="3.5" y="4.5" width="17" height="16" rx="3"/><path d="M8 2.5v4M16 2.5v4M8.5 13l2.5 2.5 4.5-5"/>',
     chart: '<path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/>',
     chevron: '<path d="m9 6 6 6-6 6"/>',
+    back: '<path d="m15 6-6 6 6 6"/>',
     send: '<path d="M21 3 10 14M21 3l-7 18-4-7-7-4 18-7z"/>',
     doc: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/>',
   };
@@ -216,6 +217,15 @@
       ui.month = null;
       load().then(function () { if (state) ui.selDay = state.today.date; render(); });
     }
+  }
+
+  // По нажатию на день поднимаем календарь к верху экрана: плашка серии уходит вверх, а детали дня видны под ним.
+  function scrollCalendarUp() {
+    var zone = document.getElementById('calzone');
+    if (!zone) return;
+    var pad = parseFloat(getComputedStyle(root).paddingTop) || 0; // отступ под системную панель и тест-полосу
+    var top = zone.getBoundingClientRect().top + window.pageYOffset - pad;
+    window.scrollTo({ top: Math.max(0, top), behavior: reducedMotion() ? 'auto' : 'smooth' });
   }
 
   // --- экраны
@@ -570,7 +580,7 @@
     }).join('') + '</div>';
 
     var ym = ui.month;
-    html += '<div class="cal-switch"><div class="seg wide"><button data-calview="month" class="' + (ui.calView === 'month' ? 'on' : '') + '">Месяц</button>' +
+    html += '<div id="calzone"><div class="cal-switch"><div class="seg wide"><button data-calview="month" class="' + (ui.calView === 'month' ? 'on' : '') + '">Месяц</button>' +
       '<button data-calview="course" class="' + (ui.calView === 'course' ? 'on' : '') + '">Весь курс</button></div></div>';
     if (ui.calView === 'course') {
       html += renderCourse();
@@ -593,14 +603,13 @@
     }
 
     html += renderDayDetails(p);
-    html += '<button class="btn ghost report-btn" id="open-report">' + icon('doc') + 'Отчёт для врача</button>';
 
     if (p.misses.length) {
       html += '<div class="misses"><b>Пропуски</b>' + p.misses.slice(-10).reverse().map(function (m) {
         return '<div>' + humanDate(m.date) + ' — ' + m.items.map(function (i) { return LABELS[i]; }).join(', ') + '</div>';
       }).join('') + '</div>';
     }
-    return html;
+    return html + '</div>';
   }
 
   function fmtMin(m) {
@@ -655,6 +664,8 @@
       '<div class="grp">Внешний вид</div><div class="group">' +
       liLink('theme', 'Тема', THEME_NAMES[prefs.theme]) +
       liLink('colors', 'Цвета активностей', '<span class="sw-row">' + swatches + '</span>') + '</div>' +
+      '<div class="grp">Для врача</div><div class="group">' +
+      '<button class="li" data-action="report"><span class="li-l">Отчёт для врача<small>соблюдение, боль, пропуски — можно отправить в чат</small></span>' + icon('chevron', 'chev') + '</button></div>' +
       '<div class="grp">Проверка</div><div class="group">' +
       liLink('testmode', 'Режим тестирования', LfkTest.active ? 'включён' : '', 'жми что угодно — данные не сохранятся') + '</div>';
   }
@@ -800,12 +811,7 @@
       b.onclick = function () { ui.calView = b.dataset.calview; render(); };
     });
     root.querySelectorAll('[data-cday]').forEach(function (b) {
-      b.onclick = function () {
-        ui.selDay = b.dataset.cday;
-        render();
-        var det = document.getElementById('details');
-        if (det && det.scrollIntoView) det.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
-      };
+      b.onclick = function () { ui.selDay = b.dataset.cday; render(); scrollCalendarUp(); };
     });
     var et = document.getElementById('enter-test');
     if (et) et.onclick = enterTest;
@@ -818,8 +824,7 @@
     if (rf) rf.onclick = function () { overlayOpen = true; initAudio(); afterChange([]); };
     var sr = document.getElementById('show-rest');
     if (sr) sr.onclick = function () { ui.showRest = true; render(); };
-    var orp = document.getElementById('open-report');
-    if (orp) orp.onclick = openReport;
+    root.querySelectorAll('[data-action="report"]').forEach(function (b) { b.onclick = openReport; });
     root.querySelectorAll('[data-item]').forEach(function (b) {
       b.onclick = function () {
         if (b.dataset.group === 'sport') openSportSheet(b.dataset.item);
@@ -855,13 +860,7 @@
       b.onclick = function () { ui.hint = ui.hint === b.dataset.hint ? null : b.dataset.hint; render(); };
     });
     root.querySelectorAll('.cal [data-day]').forEach(function (b) {
-      b.onclick = function () {
-        ui.selDay = b.dataset.day;
-        render();
-        var det = document.getElementById('details');
-        var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        if (det && det.scrollIntoView) det.scrollIntoView({ block: 'nearest', behavior: calm ? 'auto' : 'smooth' });
-      };
+      b.onclick = function () { ui.selDay = b.dataset.day; render(); scrollCalendarUp(); };
     });
     root.querySelectorAll('.seg [data-day]').forEach(function (b) {
       b.onclick = function () { ui.day = b.dataset.day; ui.hint = null; render(); };
@@ -871,6 +870,7 @@
     if (prev) prev.onclick = function () { ui.month = LfkCalendar.shiftMonth(ui.month, -1); ui.selDay = null; load(); };
     if (next) next.onclick = function () { ui.month = LfkCalendar.shiftMonth(ui.month, 1); ui.selDay = null; load(); };
     renderOverlay();
+    syncBackButton();
   }
 
   // --- таймер подходов
@@ -1203,13 +1203,18 @@
 
   function renderReport() {
     var el = document.getElementById('report');
+    syncBackButton();
     if (!report) { if (el) el.remove(); return; }
     if (!el) { el = document.createElement('div'); el.id = 'report'; document.body.appendChild(el); }
-    if (report === 'loading') { el.innerHTML = '<div class="ov-head"><span>Отчёт для врача</span></div>' + skeletonHtml(); return; }
+    if (report === 'loading') {
+      el.innerHTML = '<div class="ov-head"><button class="back-btn" data-rep="close">' + icon('back') + 'Назад</button></div>' + skeletonHtml();
+      el.querySelector('[data-rep="close"]').onclick = function () { report = null; renderReport(); };
+      return;
+    }
     var r = report;
     var row = function (k, v) { return '<div class="r-row"><span>' + k + '</span><b>' + v + '</b></div>'; };
-    el.innerHTML = '<div class="ov-head"><span>Отчёт для врача<small class="step">' + humanDate(r.period.from) + ' — ' + humanDate(r.period.to) + '</small></span>' +
-      '<button data-rep="close" aria-label="Закрыть">' + icon('close') + '</button></div>' +
+    el.innerHTML = '<div class="ov-head rep-head"><button class="back-btn" data-rep="close" aria-label="Назад">' + icon('back') + 'Назад</button>' +
+      '<span class="rep-title">Отчёт для врача<small class="step">' + humanDate(r.period.from) + ' — ' + humanDate(r.period.to) + '</small></span></div>' +
       '<div class="r-scroll"><div class="r-hero"><div class="r-pct num">' + r.compliance.percent + '%</div><div>соблюдение режима<small>' + r.compliance.goodDays + ' из ' + r.period.days + ' дн. без пропусков</small></div></div>' +
       '<div class="r-card">' + row('Серия / рекорд', r.streak + ' / ' + r.bestStreak + ' дн.') +
       row('Растяжка нерва', r.sessions.stretch) + row('Тяга резинки', r.sessions.pull) + row('Упор на пальцы', r.sessions.push) +
@@ -1221,11 +1226,12 @@
       '<div class="grp">Пропуски</div><div class="r-card">' + (r.misses.length ? r.misses.slice(-12).map(function (m) {
         return '<div class="r-row"><span>' + humanDate(m.date) + '</span><b class="miss-t">' + m.items.map(function (i) { return LABELS[i]; }).join(', ') + '</b></div>';
       }).join('') : '<div class="r-row"><span>Пропусков нет</span><b>🎉</b></div>') + '</div></div>' +
-      '<div class="ov-actions"><button class="btn" data-rep="send">' + icon('send') + 'Отправить в чат</button></div>';
+      '<div class="ov-actions"><button class="btn" data-rep="send">' + icon('send') + 'Отправить в чат</button>' +
+      '<button class="btn ghost" data-rep="close">Закрыть</button></div>';
     el.querySelectorAll('[data-rep]').forEach(function (b) {
       b.onclick = function () {
         if (b.dataset.rep === 'close') { report = null; renderReport(); return; }
-        b.disabled = true;
+        b.disabled = true; // «Отправить в чат»
         apiCall({ action: 'sendReport' }).then(function (res) {
           popup('Отчёт', res && res.ok ? 'Отправил в чат с ботом — его можно переслать врачу.' : 'Не получилось отправить, попробуй ещё раз.');
           b.disabled = false;
@@ -1255,10 +1261,25 @@
     }
   });
 
+  // Родная кнопка «Назад» Telegram: закрывает отчёт или открытый лист настроек.
+  function backOpen() { return !!report || !!ui.sheet; }
+  function syncBackButton() {
+    try {
+      if (!(tg && tg.initData && tg.BackButton)) return;
+      if (backOpen()) tg.BackButton.show(); else tg.BackButton.hide();
+    } catch (e) {}
+  }
+  function goBack() {
+    if (report) { report = null; renderReport(); }
+    else if (ui.sheet) { ui.sheet = null; render(); }
+    syncBackButton();
+  }
+
   if (tg && tg.initData) {
     document.documentElement.classList.add('tg');
     tg.ready();
     tg.expand();
+    try { tg.BackButton.onClick(goBack); } catch (e) {}
     // Пользователь сменил тему Telegram — пересчитываем схему (если в настройках «как в Telegram»).
     try { tg.onEvent('themeChanged', function () { LfkSettings.applyTheme(prefs.theme); }); } catch (e) {}
     try {
