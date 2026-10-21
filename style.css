@@ -191,15 +191,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #overlay .sets.many i { width: 10px; height: 10px; }
 #overlay .sets i.f { background: var(--accent); }
 #overlay .sets i.p { background: color-mix(in srgb, var(--accent) 50%, transparent); transform: scale(1.35); }
-#overlay .ring { width: min(76vw, 320px); aspect-ratio: 1; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-#overlay .ring .word { font-size: 22px; font-weight: 500; color: var(--accent); text-transform: uppercase; letter-spacing: .12em; }
-#overlay.tone-rest .ring .word { color: var(--green); }
-#overlay.tone-paused .ring .word { color: var(--amber); }
-#overlay.tone-ready .ring .word { color: var(--text); text-transform: none; letter-spacing: 0; font-size: 20px; }
-#overlay .ring b { font-size: min(22vw, 88px); font-weight: 200; line-height: 1.1; font-variant-numeric: tabular-nums; }
-#overlay .ring .ic.big { width: 72px; height: 72px; stroke-width: 1.6; }
-#overlay .ring small { color: var(--hint); font-size: 17px; margin-top: 4px; text-align: center; padding: 0 20px; }
-#overlay.tone-done .ring .word, #overlay.tone-done .ring small { color: #fff; }
+#overlay .tring { width: min(76vw, 320px); aspect-ratio: 1; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+#overlay .tring .word { font-size: 22px; font-weight: 500; color: var(--accent); text-transform: uppercase; letter-spacing: .12em; }
+#overlay.tone-rest .tring .word { color: var(--green); }
+#overlay.tone-paused .tring .word { color: var(--amber); }
+#overlay.tone-ready .tring .word { color: var(--text); text-transform: none; letter-spacing: 0; font-size: 20px; }
+#overlay .tring b { font-size: min(22vw, 88px); font-weight: 200; line-height: 1.1; font-variant-numeric: tabular-nums; }
+#overlay .tring .ic.big { width: 72px; height: 72px; stroke-width: 1.6; }
+#overlay .tring small { color: var(--hint); font-size: 17px; margin-top: 4px; text-align: center; padding: 0 20px; }
+#overlay.tone-done .tring .word, #overlay.tone-done .tring small { color: #fff; }
 .next { min-height: 26px; margin-top: 18px; font-size: 17px; color: var(--hint); text-align: center; }
 .ov-actions { width: 100%; max-width: 420px; margin-top: auto; }
 .ov-note { color: var(--hint); font-size: 14px; text-align: center; margin-top: 12px; }
@@ -248,7 +248,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* ============ 1.13: нижние вкладки, «Начать ЛФК», боль, отчёт, весь курс, настройки iOS ============ */
 
 /* Округлые цифры (SF Pro Rounded на iOS) — таймер, серия, счётчики */
-.num, .b-num, .b-best b, .stat b, #overlay .ring b, .pain-num, .r-pct, .ring { font-family: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-variant-numeric: tabular-nums; }
+.num, .b-num, .b-best b, .stat b, #overlay .tring b, .pain-num, .r-pct, .ring { font-family: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-variant-numeric: tabular-nums; }
 
 /* Нижняя панель вкладок — в зоне большого пальца */
 #app { padding-bottom: calc(88px + var(--bottom)); }

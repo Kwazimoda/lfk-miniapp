@@ -845,7 +845,7 @@
     el.className = 'tone-' + tone;
     el.innerHTML = '<div class="ov-head"><span>' + esc(LABELS[s.item]) + (flow ? '<small class="step">шаг ' + (flow.idx + 1) + ' из ' + flow.queue.length + '</small>' : '') + '</span><button data-act="close" aria-label="Закрыть">' + icon('close') + '</button></div>' +
       '<div class="sets' + (p.sets > 5 ? ' many' : '') + '">' + dots + '</div>' +
-      '<div class="ring" style="' + ring + '"><span class="word">' + esc(word) + '</span><b>' + big + '</b><small>' + esc(sub) + '</small></div>' +
+      '<div class="tring" style="' + ring + '"><span class="word">' + esc(word) + '</span><b>' + big + '</b><small>' + esc(sub) + '</small></div>' +
       '<div class="next">' + esc(next) + '</div>' +
       '<div class="ov-actions">' + primary + secondary + '<div class="ov-note">Боль — не выше 3–4 из 10</div></div>';
     el.querySelectorAll('[data-act]').forEach(function (b) {
