@@ -169,6 +169,40 @@
     });
   }
 
+  // Плашка внизу: «Отмечено · Отменить» / «Отметка снята · Вернуть» — на случай случайного нажатия.
+  var toastTimer = null;
+  function toast(text, actionLabel, onAction) {
+    var el = document.getElementById('toast');
+    if (!el) { el = document.createElement('div'); el.id = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+    el.innerHTML = '<span>' + esc(text) + '</span>' + (actionLabel ? '<button>' + esc(actionLabel) + '</button>' : '');
+    el.className = 'show';
+    var btn = el.querySelector('button');
+    if (btn) btn.onclick = function () { hideToast(); onAction(); };
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, 5000);
+  }
+
+  function hideToast() {
+    var el = document.getElementById('toast');
+    if (el) el.className = '';
+  }
+
+  function toggleWithUndo(item) {
+    var x = state[ui.day].list.filter(function (y) { return y.item === item; })[0];
+    if (!x) return;
+    var wasDone = x.done;
+    var wasTimed = !!x.timed;
+    var dayKey = ui.day;
+    mark(item, !wasDone);
+    toast((wasDone ? 'Отметка снята: ' : 'Отмечено: ') + x.label, wasDone ? 'Вернуть' : 'Отменить', function () {
+      var back = ui.day;
+      ui.day = dayKey; // откат — за тот же день, даже если переключились
+      mark(item, wasDone, true, wasDone && wasTimed);
+      ui.day = back;
+      render();
+    });
+  }
+
   // Если приложение пролежало в фоне до следующего дня — перечитываем данные, иначе отметки уйдут не в тот день.
   function refreshIfNewDay() {
     if (state && !pendingMarks && LfkCalendar.todayMsk(Date.now()) !== state.today.date) {
@@ -606,7 +640,7 @@
     var orp = document.getElementById('open-report');
     if (orp) orp.onclick = openReport;
     root.querySelectorAll('[data-item]').forEach(function (b) {
-      b.onclick = function () { mark(b.dataset.item, b.dataset.done !== '1'); };
+      b.onclick = function () { toggleWithUndo(b.dataset.item); };
     });
     root.querySelectorAll('[data-color]').forEach(function (b) {
       b.onclick = function () {
