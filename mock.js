@@ -74,6 +74,8 @@
     return out;
   }
 
+  var mockPlans = [{ id: '2026-10-22@1170:run', item: 'run', date: '2026-10-22', at: 1170 }];
+
   var mockSettings = { stretchAt: 780, ddxAt: 1140, lfk: { from: 1200, to: 1380 }, kb: { from: 1200, to: 1380 }, run: { from: 1020, to: 1140 } };
 
   function state(month) {
@@ -85,6 +87,7 @@
       pullPhase: { phase: 'static', done: 3, staticSessions: 6 },
       settings: mockSettings,
       course: courseMap(),
+      plans: mockPlans,
       calDays: calDays(m),
       progress: { bestStreak: 6, kbWeeks: 2, streakStart: '2026-10-15', timed: { timed: 4, total: 5 }, streak: 6, totalMisses: 0, misses: [], daysLeft: 83, daysDone: 9, daysTotal: 92, week: { pullPush: 1, kettlebell: 1, run: 1 }, runWeeks: 2, kettlebellShortWeeks: [] },
       month: m, calendar: cal.calendar, days: cal.days,
@@ -93,6 +96,16 @@
 
   window.LfkMock = {
     call: function (body) {
+      if (body.action === 'plan') {
+        var plan = { id: body.date + '@' + body.at + ':' + body.item, item: body.item, date: body.date, at: body.at };
+        mockPlans = mockPlans.filter(function (p) { return !(p.item === body.item && p.date === body.date); }).concat([plan])
+          .sort(function (a, b) { return a.date === b.date ? a.at - b.at : a.date < b.date ? -1 : 1; });
+        return { ok: true, plan: plan };
+      }
+      if (body.action === 'unplan') {
+        mockPlans = mockPlans.filter(function (p) { return p.id !== body.id; });
+        return { ok: true };
+      }
       if (body.action === 'pain') {
         (marks[body.date] = marks[body.date] || {}).pain = body.value;
         return { ok: true };

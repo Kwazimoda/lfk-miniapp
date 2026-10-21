@@ -411,3 +411,20 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #toast.show { transform: none; opacity: 1; pointer-events: auto; }
 #toast span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #toast button { flex: none; border: 0; background: none; color: var(--accent-base); font-size: 15px; font-weight: 700; min-height: 40px; padding: 0 10px; border-radius: 10px; }
+
+/* Планы на спорт */
+.tag.plan { display: inline-flex; align-items: center; gap: 4px; }
+.tag.plan .ic { width: 12px; height: 12px; stroke-width: 2.2; }
+.sheet .btn { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 0; }
+.sheet .btn .ic { width: 18px; height: 18px; }
+.sheet-grp { margin: 20px 4px 8px; }
+.plan-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.plan-item { display: flex; align-items: center; gap: 10px; background: var(--soft); border-radius: 14px; padding: 6px 6px 6px 14px; font-size: 15px; }
+.plan-item .ic { width: 17px; height: 17px; color: var(--accent); flex: none; }
+.plan-item span { flex: 1; }
+.plan-item button { border: 0; background: none; color: var(--red); font-size: 14px; font-weight: 600; min-height: 40px; padding: 0 10px; border-radius: 10px; }
+.plan-form { display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px; margin-bottom: 12px; }
+.plan-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--hint); }
+.plan-form .time { width: 100%; min-width: 0; font-size: 17px; }
+.d-row.plan { color: var(--text); }
+.d-row.plan b { flex: none; color: var(--accent); font-weight: 600; }

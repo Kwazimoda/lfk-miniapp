@@ -6,7 +6,7 @@
   var MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
   var LABELS = { stretch: 'Растяжка нерва', pull: 'Тяга резинки', push: 'Упор на пальцы', pullPush: 'Тяга + упор', kettlebell: 'Гиря', ddx: 'DDX', run: 'Бег', tennis: 'Теннис' };
 
-  var ui = { tab: 'today', day: 'today', month: null, hint: null, selDay: null, calView: 'month', sheet: null, showRest: false, popItem: null, painVal: 2 };
+  var ui = { tab: 'today', day: 'today', month: null, hint: null, selDay: null, calView: 'month', sheet: null, showRest: false, popItem: null, painVal: 2, planDate: null, planAt: null };
   var flow = null; // «Начать ЛФК»: { queue: [item], idx, stage: 'between' | 'session' | 'pain' | 'done', solo }
   var report = null; // данные отчёта для врача, когда он открыт
   var wasAllDone = null;
@@ -33,6 +33,7 @@
     flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
     gear: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     today: '<rect x="3.5" y="4.5" width="17" height="16" rx="3"/><path d="M8 2.5v4M16 2.5v4M8.5 13l2.5 2.5 4.5-5"/>',
     chart: '<path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/>',
     chevron: '<path d="m9 6 6 6-6 6"/>',
@@ -222,6 +223,81 @@
     }).join('');
   }
 
+  // --- планы на спорт
+
+  var WD_SHORT = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+  var MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+  function plansFor(item) {
+    return (state.plans || []).filter(function (p) { return p.item === item; });
+  }
+
+  // «19:30» для сегодня, «завтра 19:30», «пт 23 окт, 19:30» — для остальных.
+  function planWhen(p, withDate) {
+    var t = fmtMin(p.at);
+    if (p.date === state.today.date) return t;
+    if (p.date === state.yesterday.date) return 'вчера ' + t;
+    var d = new Date(Date.UTC(+p.date.slice(0, 4), +p.date.slice(5, 7) - 1, +p.date.slice(8, 10)));
+    var tomorrow = new Date(Date.UTC(+state.today.date.slice(0, 4), +state.today.date.slice(5, 7) - 1, +state.today.date.slice(8, 10) + 1));
+    if (d.getTime() === tomorrow.getTime()) return 'завтра ' + t;
+    return WD_SHORT[d.getUTCDay()] + ' ' + +p.date.slice(8, 10) + ' ' + MONTHS_SHORT[+p.date.slice(5, 7) - 1] + (withDate === false ? '' : ', ' + t);
+  }
+
+  function planTagHtml(item) {
+    var next = plansFor(item)[0];
+    return next ? '<i class="tag phase plan">' + icon('clock') + 'план: ' + esc(planWhen(next)) + '</i>' : '';
+  }
+
+  // Московское время «сейчас» в минутах от полуночи (сервер ждёт именно его).
+  function mskMinutes() {
+    var n = new Date(Date.now() + 3 * 3600000);
+    return n.getUTCHours() * 60 + n.getUTCMinutes();
+  }
+
+  function nextQuarter() {
+    return Math.min(1425, Math.max(360, Math.ceil((mskMinutes() + 45) / 15) * 15));
+  }
+
+  function openSportSheet(item) {
+    ui.planDate = state.today.date;
+    ui.planAt = nextQuarter();
+    // Поздно вечером на сегодня уже не поставить — по умолчанию предлагаем завтра утром.
+    if (mskMinutes() + 45 > 1425) {
+      ui.planDate = planDay(1);
+      ui.planAt = 9 * 60;
+    }
+    ui.sheet = 'sport:' + item;
+    render();
+  }
+
+  function planDay(delta) {
+    var d = new Date(Date.UTC(+state.today.date.slice(0, 4), +state.today.date.slice(5, 7) - 1, +state.today.date.slice(8, 10) + delta));
+    return d.toISOString().slice(0, 10);
+  }
+
+  function addPlanFor(item, date, at) {
+    apiCall({ action: 'plan', item: item, date: date, at: at }).then(function (r) {
+      if (!r || !r.ok) {
+        var msg = r && r.error === 'bad_time' ? 'Это время уже прошло или вне диапазона 6:00–23:45.' : r && r.error === 'bad_date' ? 'Дату можно выбрать от сегодня и на 60 дней вперёд.' : 'Не удалось запланировать.';
+        popup('Планирование', msg);
+        return;
+      }
+      state.plans = (state.plans || []).filter(function (p) { return p.id !== r.plan.id && !(p.item === item && p.date === date); }).concat([r.plan])
+        .sort(function (a, b) { return a.date === b.date ? a.at - b.at : a.date < b.date ? -1 : 1; });
+      ui.sheet = null;
+      render();
+      var label = LABELS[item];
+      toast('Запланировано: ' + label + ', ' + planWhen(r.plan), 'Отменить', function () { removePlanById(r.plan.id); });
+    }).catch(function () { popup('Планирование', 'Не получилось сохранить. Попробуй ещё раз.'); });
+  }
+
+  function removePlanById(id) {
+    var prev = state.plans;
+    state.plans = (state.plans || []).filter(function (p) { return p.id !== id; });
+    render();
+    apiCall({ action: 'unplan', id: id }).catch(function () { state.plans = prev; render(); popup('Планирование', 'Не получилось отменить план.'); });
+  }
+
   function renderRow(x) {
     var hint = LfkHints.hintFor(x.item, state.pullPhase);
     var canTime = ui.day === 'today' && LfkSession.planFor(x.item, state.pullPhase, prefs) && !x.timed;
@@ -229,12 +305,12 @@
     var running = session && session.item === x.item && session.phase !== 'done';
     var slim = !dose; // без дозировки — название и метка в одной строке
     var html = '<div class="row ' + (x.done ? 'done ' : '') + (slim ? 'slim ' : '') + (ui.popItem === x.item && x.done ? 'pop ' : '') + esc(x.status) + '">' +
-      '<button class="ex" data-item="' + esc(x.item) + '" data-done="' + (x.done ? 1 : 0) + '" aria-pressed="' + !!x.done + '" aria-label="' +
+      '<button class="ex" data-item="' + esc(x.item) + '" data-group="' + esc(x.group) + '" data-done="' + (x.done ? 1 : 0) + '" aria-pressed="' + !!x.done + '" aria-label="' +
         esc(x.label + ': ' + (x.done ? (x.timed ? 'сделано с таймером' : 'сделано') : 'не сделано') + (dose ? ', ' + dose : '') + (x.tags && x.tags.length ? ', ' + x.tags.join(', ') : '')) + '">' +
       '<span class="chk">' + (x.done ? icon(x.timed ? 'timer' : 'check') : '') + '</span>' +
       '<span class="txt' + (slim ? ' inline' : '') + '"><span class="name">' + esc(x.label) + '</span>' +
       (dose ? '<span class="dose">' + esc(dose) + '</span>' : '') +
-      '<span class="tags">' + tagsHtml(x.tags) + '</span></span></button>' +
+      '<span class="tags">' + tagsHtml(x.tags) + planTagHtml(x.item) + '</span></span></button>' +
       '<span class="acts">' +
       (canTime ? '<button class="start' + (running ? ' running' : '') + '" data-start="' + esc(x.item) + '" aria-label="' + esc('Начать с таймером: ' + x.label) + '">' +
         (running ? session.completed + '/' + session.plan.sets : icon('play', 'fill')) + '</button>' : '') +
@@ -358,7 +434,12 @@
     var cal = iso && (state.calDays[iso] || (state.course && state.course[iso]));
     if (!iso || !cal) return '<div class="details empty" id="details">Нажми на день в календаре — покажу, что в нём было.</div>';
     var head = weekdayName(iso) + ', ' + humanDate(iso);
-    if (cal.future) return '<div class="details" id="details"><div class="d-head"><b>' + esc(head) + '</b><span class="d-tag future">впереди</span></div><div class="d-empty">Этот день ещё не наступил.</div></div>';
+    if (cal.future) {
+      var fut = (state.plans || []).filter(function (p) { return p.date === iso; }).map(function (p) {
+        return '<div class="d-row plan"><i class="dot ' + ({ kettlebell: 'kb', run: 'run', ddx: 'ddx', tennis: 'tennis' }[p.item]) + '"></i><span>' + esc(LABELS[p.item]) + ' — запланировано</span><b class="num">' + fmtMin(p.at) + '</b></div>';
+      }).join('');
+      return '<div class="details" id="details"><div class="d-head"><b>' + esc(head) + '</b><span class="d-tag future">впереди</span></div>' + (fut || '<div class="d-empty">Этот день ещё не наступил.</div>') + '</div>';
+    }
 
     var d = state.days[iso];
     if (!d) {
@@ -383,6 +464,9 @@
     if (d.plan && d.plan.kettlebell === 'off' && !d.done.kettlebell) {
       rows += '<div class="d-row rest"><i class="dot rest"></i><span>Гиря не нужна — день DDX</span></div>';
     }
+    (state.plans || []).filter(function (p) { return p.date === iso; }).forEach(function (p) {
+      rows += '<div class="d-row plan"><i class="dot ' + ({ kettlebell: 'kb', run: 'run', ddx: 'ddx', tennis: 'tennis' }[p.item]) + '"></i><span>' + esc(LABELS[p.item]) + ' — запланировано</span><b class="num">' + fmtMin(p.at) + '</b></div>';
+    });
     if (typeof d.pain === 'number') {
       rows += '<div class="d-row"><i class="dot pain" style="--pain:' + painColor(d.pain) + '"></i><span>Боль в локте</span><b class="num">' + d.pain + '/10</b></div>';
     }
@@ -531,6 +615,7 @@
     var win = function (k, title, note) {
       return [title, '<div class="range big">' + timeInput(k + '.from', st[k].from) + '<em>—</em>' + timeInput(k + '.to', st[k].to) + '</div><p class="sheet-note">' + note + '</p>'];
     };
+    if (/^sport:/.test(key)) return sportSheet(key.slice(6));
     switch (key) {
       case 'restSec': return ['Отдых между подходами', segHtml('restSec', opt(LfkSettings.REST_OPTIONS, ' с'), prefs.restSec) + '<p class="sheet-note">Для тяги резинки и упора на пальцы.</p>'];
       case 'stretchRestSec': return ['Отдых в растяжке', segHtml('stretchRestSec', opt(LfkSettings.STRETCH_REST_OPTIONS, ' с'), prefs.stretchRestSec) + '<p class="sheet-note">Пауза между 10 повторами растяжки нерва (каждый — 5 секунд).</p>'];
@@ -547,6 +632,26 @@
       }).join('') + '<button class="btn ghost" id="reset-colors">Сбросить цвета</button>'];
     }
     return ['', ''];
+  }
+
+  function sportSheet(item) {
+    var x = state[ui.day].list.filter(function (y) { return y.item === item; })[0] || { label: LABELS[item], done: false };
+    var plans = plansFor(item);
+    var today = state.today.date;
+    var maxDate = planDay(60);
+    var plansHtml = plans.length ? '<div class="plan-list">' + plans.map(function (p) {
+      return '<div class="plan-item">' + icon('clock') + '<span>' + esc(planWhen(p)) + '</span><button data-unplan="' + esc(p.id) + '" aria-label="' + esc('Отменить план: ' + planWhen(p)) + '">Отменить</button></div>';
+    }).join('') + '</div>' : '';
+    var primary = x.done
+      ? '<button class="btn ghost" data-sport-toggle="' + item + '">Снять отметку «выполнено»</button>'
+      : '<button class="btn" data-sport-toggle="' + item + '">' + icon('check') + 'Выполнено</button>';
+    return [x.label,
+      primary +
+      '<div class="grp sheet-grp">Запланировать</div>' + plansHtml +
+      '<div class="plan-form"><label><span>Дата</span><input type="date" class="time" id="plan-date" min="' + today + '" max="' + maxDate + '" value="' + ui.planDate + '"></label>' +
+      '<label><span>Время</span><input type="time" class="time" id="plan-time" step="900" min="06:00" max="23:45" value="' + (ui.planAt < 600 ? '0' : '') + fmtMin(ui.planAt) + '"></label></div>' +
+      '<button class="btn ghost plan-save" data-plan-save="' + item + '">' + icon('clock') + 'Запланировать</button>' +
+      '<p class="sheet-note">В назначенное время бот напомнит. Если до этого отметить «выполнено», план снимется сам.</p>'];
   }
 
   function renderSheet() {
@@ -620,6 +725,20 @@
     root.querySelectorAll('[data-close-sheet]').forEach(function (b) {
       b.onclick = function () { ui.sheet = null; render(); };
     });
+    root.querySelectorAll('[data-sport-toggle]').forEach(function (b) {
+      b.onclick = function () { var it = b.dataset.sportToggle; ui.sheet = null; toggleWithUndo(it); };
+    });
+    root.querySelectorAll('[data-unplan]').forEach(function (b) {
+      b.onclick = function () { removePlanById(b.dataset.unplan); };
+    });
+    root.querySelectorAll('[data-plan-save]').forEach(function (b) {
+      b.onclick = function () {
+        var d = document.getElementById('plan-date').value;
+        var m = /^(\d{1,2}):(\d{2})$/.exec(document.getElementById('plan-time').value || '');
+        if (!d || !m) { popup('Планирование', 'Выбери дату и время.'); return; }
+        addPlanFor(b.dataset.planSave, d, Number(m[1]) * 60 + Number(m[2]));
+      };
+    });
     root.querySelectorAll('[data-calview]').forEach(function (b) {
       b.onclick = function () { ui.calView = b.dataset.calview; render(); };
     });
@@ -640,7 +759,10 @@
     var orp = document.getElementById('open-report');
     if (orp) orp.onclick = openReport;
     root.querySelectorAll('[data-item]').forEach(function (b) {
-      b.onclick = function () { toggleWithUndo(b.dataset.item); };
+      b.onclick = function () {
+        if (b.dataset.group === 'sport') openSportSheet(b.dataset.item);
+        else toggleWithUndo(b.dataset.item);
+      };
     });
     root.querySelectorAll('[data-color]').forEach(function (b) {
       b.onclick = function () {
