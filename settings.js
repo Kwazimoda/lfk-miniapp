@@ -8,7 +8,7 @@
   var REST_OPTIONS = [30, 45, 60, 90];
   var STRETCH_REST_OPTIONS = [5, 10, 15];
   var THEMES = ['auto', 'light', 'dark'];
-  var PREFS_DEFAULTS = { sound: true, vibe: true, restSec: 45, stretchRestSec: 10, theme: 'auto' };
+  var PREFS_DEFAULTS = { sound: true, vibe: true, restSec: 45, stretchRestSec: 15, theme: 'auto' };
 
   function normalizePrefs(v) {
     var s = v && typeof v === 'object' ? v : {};

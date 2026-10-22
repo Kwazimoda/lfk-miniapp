@@ -2,6 +2,8 @@
 // поэтому сворачивание приложения и перезапуск страницы не сбивают отсчёт.
 (function (root) {
   var WARN_MS = 3000;
+  var PREP_MS = 5000; // растяжка: «Приготовиться» перед первым повтором
+  var REST_WARN_MS = 5000; // растяжка: «Приготовиться» и сигнал за 5 с до конца отдыха
   var REST_MS = 45000;
   var HOLD_MS = 45000;
 
@@ -13,7 +15,7 @@
     }
     if (item === 'pull') return { mode: 'reps', sets: 3, reps: 10, restMs: rest };
     // Растяжка: повторы идут сами, без нажатий между ними.
-    if (item === 'stretch') return { mode: 'auto', sets: 10, holdMs: 5000, restMs: prefs && prefs.stretchRestSec ? prefs.stretchRestSec * 1000 : 10000 };
+    if (item === 'stretch') return { mode: 'auto', sets: 10, holdMs: 5000, restMs: prefs && prefs.stretchRestSec ? prefs.stretchRestSec * 1000 : 15000 };
     return null;
   }
 
@@ -38,6 +40,7 @@
 
   function start(s, now) {
     if (s.phase !== 'ready' || s.plan.mode === 'reps') return s;
+    if (s.plan.mode === 'auto') return copy(s, { phase: 'prep', endsAt: now + PREP_MS, warned: false });
     return copy(s, { phase: 'hold', endsAt: now + s.plan.holdMs, warned: false });
   }
 
@@ -47,7 +50,7 @@
   }
 
   function pause(s, now) {
-    if (s.phase !== 'hold' && !(s.phase === 'rest' && s.plan.mode === 'auto')) return s;
+    if (s.phase !== 'hold' && s.phase !== 'prep' && !(s.phase === 'rest' && s.plan.mode === 'auto')) return s;
     return copy(s, { phase: 'paused', pausedFrom: s.phase, left: Math.max(0, s.endsAt - now), endsAt: null });
   }
 
@@ -63,23 +66,32 @@
 
   function remainingMs(s, now) {
     if (s.phase === 'paused') return s.left;
-    if (s.phase === 'hold' || s.phase === 'rest') return Math.max(0, s.endsAt - now);
+    if (s.phase === 'hold' || s.phase === 'rest' || s.phase === 'prep') return Math.max(0, s.endsAt - now);
     if (s.phase === 'ready' && s.plan.mode !== 'reps') return s.plan.holdMs;
     return 0;
   }
 
-  // Продвигает состояние к моменту now; events — 'warn' (за 3 с) и 'end' (конец удержания/отдыха).
+  // За сколько мс до конца фазы подаём сигнал 'warn' (0 — без сигнала).
+  function warnMs(s) {
+    if (s.phase === 'prep') return WARN_MS;
+    if (s.plan.mode !== 'auto') return WARN_MS;
+    return s.phase === 'rest' ? REST_WARN_MS : 0;
+  }
+
+  // Продвигает состояние к моменту now; events — 'warn' (предупреждение) и 'end' (конец фазы).
   function tick(s, now) {
     var events = [];
     var guard = 50;
-    while (guard-- > 0 && (s.phase === 'hold' || s.phase === 'rest')) {
-      if (!s.warned && s.plan.mode !== 'auto' && now >= s.endsAt - WARN_MS) {
+    while (guard-- > 0 && (s.phase === 'hold' || s.phase === 'rest' || s.phase === 'prep')) {
+      var w = warnMs(s);
+      if (!s.warned && w && now >= s.endsAt - w) {
         events.push('warn');
         s = copy(s, { warned: true });
       }
       if (now < s.endsAt) break;
       events.push('end');
-      if (s.phase === 'hold') s = finishSet(s, s.endsAt);
+      if (s.phase === 'prep') s = copy(s, { phase: 'hold', endsAt: s.endsAt + s.plan.holdMs, warned: false });
+      else if (s.phase === 'hold') s = finishSet(s, s.endsAt);
       else if (s.plan.mode === 'auto') s = copy(s, { phase: 'hold', set: s.completed + 1, endsAt: s.endsAt + s.plan.holdMs, warned: false });
       else s = copy(s, { phase: 'ready', set: s.completed + 1, endsAt: null, warned: false });
     }
@@ -103,7 +115,7 @@
   function estimateSec(plan) {
     if (!plan) return 0;
     var work = plan.mode === 'reps' ? REPS_SET_SEC : plan.holdMs / 1000;
-    return plan.sets * work + (plan.sets - 1) * (plan.restMs / 1000);
+    return plan.sets * work + (plan.sets - 1) * (plan.restMs / 1000) + (plan.mode === 'auto' ? PREP_MS / 1000 : 0);
   }
 
   // Очередь «Начать ЛФК»: несделанные обязательные упражнения ЛФК в порядке растяжка → тяга → упор.
@@ -117,6 +129,7 @@
 
   var api = {
     estimateSec: estimateSec, flowQueue: flowQueue,
+    PREP_MS: PREP_MS, REST_WARN_MS: REST_WARN_MS,
     planFor: planFor, create: create, start: start, doneSet: doneSet, pause: pause, resume: resume,
     skipRest: skipRest, remainingMs: remainingMs, tick: tick, restore: restore,
   };

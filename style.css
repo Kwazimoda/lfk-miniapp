@@ -60,7 +60,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .ex { flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; text-align: left; border: 0; background: none; padding: 10px 8px 10px 16px; }
 .chk { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 1.8px solid color-mix(in srgb, var(--accent) 70%, transparent); display: flex; align-items: center; justify-content: center; color: var(--accent-text); transition: background .2s, border-color .2s; }
 .chk .ic { width: 18px; height: 18px; stroke-width: 2.2; }
-.row.done .chk { background: var(--accent); border-color: var(--accent); }
+.row.done .chk { background: var(--green); border-color: var(--green); color: #fff; }
 .txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .row.slim { min-height: 54px; }
 .row.slim .ex { padding-top: 6px; padding-bottom: 6px; }
@@ -200,7 +200,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #overlay .tring { width: min(76vw, 320px); aspect-ratio: 1; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 #overlay .tring .word { font-size: 22px; font-weight: 500; color: var(--accent); text-transform: uppercase; letter-spacing: .12em; }
 #overlay.tone-rest .tring .word { color: var(--green); }
-#overlay.tone-paused .tring .word { color: var(--amber); }
+#overlay.tone-paused .tring .word, #overlay.tone-prep .tring .word { color: var(--amber); }
 #overlay.tone-ready .tring .word { color: var(--text); text-transform: none; letter-spacing: 0; font-size: 20px; }
 #overlay .tring b { font-size: min(22vw, 88px); font-weight: 200; line-height: 1.1; font-variant-numeric: tabular-nums; }
 #overlay .tring .ic.big { width: 72px; height: 72px; stroke-width: 1.6; }
@@ -228,6 +228,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .d-row .d-mark .ic { width: 17px; height: 17px; stroke-width: 2.2; }
 .d-row.miss { color: var(--red); }
 .d-row.miss .d-mark { color: var(--red); }
+.d-row .d-mark.ok, .stat .lbl .ic.ok { color: var(--green); }
 .d-row.rest { color: var(--hint); }
 .dot.rest { background: var(--track); }
 .d-empty { color: var(--hint); font-size: 14px; padding: 6px 0 2px; }

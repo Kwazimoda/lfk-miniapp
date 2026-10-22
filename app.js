@@ -366,7 +366,7 @@
     var html = '<div class="row ' + (x.done ? 'done ' : '') + (slim ? 'slim ' : '') + (ui.popItem === x.item && x.done ? 'pop ' : '') + esc(x.status) + '">' +
       '<button class="ex" data-item="' + esc(x.item) + '" data-group="' + esc(x.group) + '" data-done="' + (x.done ? 1 : 0) + '" aria-pressed="' + !!x.done + '" aria-label="' +
         esc(x.label + ': ' + (x.done ? (x.timed ? 'сделано с таймером' : 'сделано') : 'не сделано') + (dose ? ', ' + dose : '') + (x.tags && x.tags.length ? ', ' + x.tags.join(', ') : '')) + '">' +
-      '<span class="chk">' + (x.done ? icon(x.timed ? 'timer' : 'check') : '') + '</span>' +
+      '<span class="chk">' + (x.done ? icon('check') : '') + '</span>' +
       '<span class="txt' + (slim ? ' inline' : '') + '"><span class="name">' + esc(x.label) + '</span>' +
       (dose ? '<span class="dose">' + esc(dose) + '</span>' : '') +
       '<span class="tags">' + tagsHtml(x.tags) + planTagHtml(x.item) + '</span></span></button>' +
@@ -461,7 +461,7 @@
   }
 
   function statCell(label, dotCls, value, sub) {
-    return '<div class="stat"><span class="lbl">' + (dotCls === 'timer' ? icon('timer') : '<i class="dot ' + dotCls + '"></i>') + label + '</span>' +
+    return '<div class="stat"><span class="lbl">' + (dotCls === 'timer' ? icon('check', 'ok') : '<i class="dot ' + dotCls + '"></i>') + label + '</span>' +
       '<b>' + value + '</b><small>' + esc(sub) + '</small></div>';
   }
 
@@ -512,7 +512,7 @@
       var key = it[0];
       if (d.done[key]) {
         rows += '<div class="d-row"><i class="dot ' + it[1] + '"></i><span>' + esc(LABELS[key]) + '</span>' +
-          (d.timed && d.timed[key] ? '<span class="d-mark" title="с таймером">' + icon('timer') + '</span>' : '<span class="d-mark">' + icon('check') + '</span>') + '</div>';
+          '<span class="d-mark ok"' + (d.timed && d.timed[key] ? ' title="с таймером"' : '') + '>' + icon('check') + '</span>' + '</div>';
       } else if (d.misses.indexOf(key) >= 0) {
         rows += '<div class="d-row miss"><i class="dot red"></i><span>' + esc(LABELS[key]) + ' — пропущено</span><span class="d-mark">' + icon('close') + '</span></div>';
       }
@@ -965,7 +965,7 @@
   function sessionAction(act) {
     var now = Date.now();
     initAudio();
-    if (act === 'start') { session = LfkSession.start(session, now); if (session.plan.mode === 'auto') beep(880, 250); }
+    if (act === 'start') session = LfkSession.start(session, now);
     if (act === 'done-set') session = LfkSession.doneSet(session, now);
     if (act === 'pause') session = LfkSession.pause(session, now);
     if (act === 'resume') session = LfkSession.resume(session, now);
@@ -981,7 +981,7 @@
   function afterChange(events) {
     events.forEach(signal);
     saveSession();
-    var live = session && (session.phase === 'hold' || session.phase === 'rest');
+    var live = session && (session.phase === 'hold' || session.phase === 'rest' || session.phase === 'prep');
     keepAwake(live);
     try { tg && tg.initData && (live ? tg.enableClosingConfirmation() : tg.disableClosingConfirmation()); } catch (e) {}
     if (session && session.phase === 'done' && !session.marked) {
@@ -1024,8 +1024,8 @@
     var now = Date.now();
     var left = LfkSession.remainingMs(s, now);
     var phase = s.phase === 'paused' ? s.pausedFrom || 'hold' : s.phase;
-    var total = phase === 'rest' ? p.restMs : p.holdMs;
-    var frac = (s.phase === 'hold' || s.phase === 'rest' || s.phase === 'paused') && total ? 1 - left / total : 0;
+    var total = phase === 'rest' ? p.restMs : phase === 'prep' ? LfkSession.PREP_MS : p.holdMs;
+    var frac = (s.phase === 'hold' || s.phase === 'rest' || s.phase === 'prep' || s.phase === 'paused') && total ? 1 - left / total : 0;
     var unit = auto ? 'повтор' : 'подход';
 
     var dots = '';
@@ -1041,8 +1041,13 @@
     } else if (s.phase === 'paused') {
       word = 'Пауза'; big = fmt(left); sub = unit + ' ' + s.set + ' из ' + p.sets; tone = 'paused';
       primary = '<button class="btn" data-act="resume">Продолжить</button>';
+    } else if (s.phase === 'prep') {
+      word = 'Приготовиться'; big = fmt(left); sub = 'растяжка начнётся сейчас'; tone = 'prep';
+      next = 'Дальше: растяжка, повтор 1';
+      secondary = '<button class="btn ghost" data-act="pause">Пауза</button>';
     } else if (s.phase === 'rest') {
-      word = 'Отдых'; big = fmt(left); sub = 'сделано ' + s.completed + ' из ' + p.sets; tone = 'rest';
+      var getReady = auto && left <= LfkSession.REST_WARN_MS;
+      word = getReady ? 'Приготовиться' : 'Отдых'; big = fmt(left); sub = 'сделано ' + s.completed + ' из ' + p.sets; tone = getReady ? 'prep' : 'rest';
       next = auto ? 'Дальше: растяжка, повтор ' + (s.completed + 1) : 'Дальше: подход ' + (s.completed + 1) + ' — по кнопке';
       secondary = auto ? '<button class="btn ghost" data-act="pause">Пауза</button>' : '<button class="btn ghost" data-act="skip">Пропустить отдых</button>';
     } else if (s.phase === 'hold') {
@@ -1054,10 +1059,10 @@
       primary = '<button class="btn" data-act="done-set">Сделал подход ' + s.set + '</button>';
     } else {
       word = auto ? p.sets + ' повторов подряд' : 'Подход ' + s.set + ' из ' + p.sets; big = fmt(p.holdMs); tone = 'ready';
-      sub = auto ? fmt(p.holdMs) + ' растяжка · ' + fmt(p.restMs) + ' отдых' : 'удержание';
+      sub = auto ? fmt(p.holdMs) + ' растяжка · ' + fmt(p.restMs) + ' отдых · ' + fmt(LfkSession.PREP_MS) + ' подготовка' : 'удержание';
       primary = '<button class="btn" data-act="start">' + (auto ? 'Начать' : 'Начать подход ' + s.set) + '</button>';
     }
-    var color = tone === 'rest' ? 'var(--green)' : 'var(--accent)';
+    var color = tone === 'rest' ? 'var(--green)' : tone === 'prep' ? 'var(--amber)' : 'var(--accent)';
     var ring = tone === 'done' ? 'background:var(--green);color:#fff'
       : 'background:radial-gradient(var(--bg) 66.5%, transparent 67%), conic-gradient(' + color + ' 0 ' + (frac * 100).toFixed(1) + '%, var(--track) 0)';
 
@@ -1071,7 +1076,7 @@
       b.onclick = function () { sessionAction(b.dataset.act); };
     });
 
-    var live = s.phase === 'hold' || s.phase === 'rest';
+    var live = s.phase === 'hold' || s.phase === 'rest' || s.phase === 'prep';
     if (live && !timerId) {
       timerId = setInterval(function () {
         var r = LfkSession.tick(session, Date.now());
@@ -1152,7 +1157,7 @@
       var lfk = state.today.list.filter(function (y) { return y.group === 'lfk' && y.done; });
       html = '<div class="ov-head"><span>ЛФК</span><button data-act="close" aria-label="Закрыть">' + icon('close') + '</button></div>' +
         '<div class="done-box"><div class="done-ic">' + icon('check', 'big') + '</div><b>ЛФК на сегодня — всё!</b>' +
-        '<div class="done-list">' + lfk.map(function (y) { return '<span>' + icon(y.timed ? 'timer' : 'check') + esc(y.label) + '</span>'; }).join('') + '</div>' +
+        '<div class="done-list">' + lfk.map(function (y) { return '<span>' + icon('check') + esc(y.label) + '</span>'; }).join('') + '</div>' +
         (typeof state.today.pain === 'number' ? '<small>Боль: ' + state.today.pain + '/10</small>' : '') + '</div>' +
         '<div class="ov-actions"><button class="btn" data-act="close">Готово</button></div>';
     }
